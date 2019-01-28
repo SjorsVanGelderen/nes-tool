@@ -132,17 +132,15 @@ mod vs {
 #version 450
 
 layout(location = 0) in vec3 position;
-layout(location = 1) in vec2 uv_in;
+// layout(location = 1) in vec2 uv_in;
 
-layout(location = 2) out vec2 uv_out;
-
-// layout(set = 0, binding = 0) uniform mat4 mvp;
+// layout(location = 0) out vec2 uv_out;
 
 void main() {
     // gl_Position = mvp * vec4(position, 1);
     gl_Position = vec4(position, 1);
 
-    uv_out = uv_in;
+    // uv_out = uv_in;
 }
 "
     }
@@ -155,12 +153,13 @@ mod fs {
 "
 #version 450
 
-layout(location = 2) in vec2 uv_in;
+// layout(location = 0) in vec2 uv;
 
-layout(location = 3) out vec4 color;
+layout(location = 0) out vec4 color;
 
 void main() {
-    color = vec4(1.0, 0.0, 0.0, 1.0);
+    // color = vec4(1.0, uv.x, uv.y, 1.0);
+    color = vec4(1.0, 0.0, 1.0, 1.0);
 }
 "
     }
@@ -194,7 +193,7 @@ fn get_device_and_queues(p: PhysicalDevice, q: QueueFamily) -> (Arc<Device>, Que
         p.supported_features(),
         &extensions,
         [(q, 0.5)].iter().cloned()
-    ).unwrap() // .expect("Failed to create device")
+    ).expect("Failed to create device")
 }
 
 fn window_size_dependent_setup(
@@ -222,8 +221,6 @@ fn window_size_dependent_setup(
 }
 
 fn main() {
-    println!("Starting nes-tool");
-
     // TODO: Set up an orthogonal projection matrix and UVs. Then pass this information to the shaders with a descriptor.
 
     let instance = {
@@ -292,7 +289,7 @@ fn main() {
             PresentMode::Fifo,
             true,
             None
-        ).unwrap() //.expect("Failed to create swapchain");
+        ).unwrap() //.expect("Failed to create swapchain")
     };
 
     let my_surface = Surface::zero();
@@ -485,6 +482,4 @@ fn main() {
 
     // For reference:
     // https://github.com/vulkano-rs/vulkano-examples/blob/master/src/bin/triangle.rs
-
-    println!("Stopping nes-tool");
 }

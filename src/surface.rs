@@ -23,15 +23,15 @@ impl Surface {
             [1.0, 0.0],
         ];
 
-        let indices: [u32] = [
+        let indices: [u32; 6] = [
             0, 1, 2, 2, 3, 0
         ];
 
         Surface {
-            vertices: positions.iter().zip(uvs).map(
-                |p, u| Vertex { position: *p, uv: *u } 
+            vertices: positions.iter().zip(uvs.iter()).map(
+                |(p, u)| Vertex { position: *p, uv: *u } 
             ).collect(),
-            indices: indices,
+            indices: indices.to_vec(), // TODO: Check if the CpuAccessibleBuffer accepts slices also
         }
     }
 }
