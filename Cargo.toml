@@ -1,0 +1,13 @@
+[package]
+name = "nes-tool"
+version = "0.1.0"
+authors = ["Sjors van Gelderen <sjorsvangelderen@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+vulkano = "0.11"
+vulkano-shaders = "0.11"
+vulkano-win = "0.11"
+winit = "0.18"
+image = "0.19"
+glm = "0.2.3"

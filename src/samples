@@ -1,0 +1,213 @@
+// fn simple_cpu_buffer_example(d: Arc<Device>, q: Arc<Queue>) {
+//     let source_data = (0 .. 128).map(|_| 5u8);
+
+//     let source_buffer = CpuAccessibleBuffer::from_iter(
+//         d.clone(),
+//         BufferUsage::all(),
+//         source_data
+//     ).unwrap();
+
+//     // let mut content = buffer.write().unwrap();
+//     // content[0] = 6u8;
+
+//     let target_data = (0 .. 128).map(|_| 0u8);
+//     let target_buffer = CpuAccessibleBuffer::from_iter(
+//         d.clone(),
+//         BufferUsage::all(),
+//         target_data
+//     ).unwrap();
+
+//     let command_buffer = AutoCommandBufferBuilder::new(d.clone(), q.family()).unwrap()
+//         .copy_buffer(source_buffer.clone(), target_buffer.clone()).unwrap()
+//         .build().unwrap();
+
+//     let finished = command_buffer.execute(q.clone()).unwrap();
+
+//     finished.then_signal_fence_and_flush().unwrap()
+//         .wait(None).unwrap();
+
+//     let source_content = source_buffer.read().unwrap();
+//     let target_content = target_buffer.read().unwrap();
+
+//     assert_eq!(&*source_content, &*target_content);
+
+//     println!("Source and target buffer match!");
+// }
+
+// fn compute_shader_example(d: Arc<Device>, q: Arc<Queue>) {
+//     let data_iter = 0 .. 65536;
+//     let data_buffer = CpuAccessibleBuffer::from_iter(
+//         d.clone(),
+//         BufferUsage::all(),
+//         data_iter
+//     ).expect("Failed to create buffer");
+
+//     let shader = cs::Shader::load(d.clone())
+//         .expect("Failed to create shader module");
+
+//     let compute_pipeline = Arc::new(
+//         ComputePipeline::new(d.clone(), &shader.main_entry_point(), &())
+//             .expect("Failed to create compute pipeline")
+//     );
+
+//     let set = Arc::new(
+//         PersistentDescriptorSet::start(compute_pipeline.clone(), 0)
+//             .add_buffer(data_buffer.clone()).unwrap()
+//             .build().unwrap()
+//     );
+
+//     let command_buffer = AutoCommandBufferBuilder::new(d.clone(), q.family()).unwrap()
+//         .dispatch(
+//             [1024, 1, 1],
+//             compute_pipeline.clone(),
+//             set.clone(),
+//             ()
+//         ).unwrap()
+//         .build().unwrap();
+
+//     let finished = command_buffer.execute(q.clone()).unwrap();
+
+//     finished.then_signal_fence_and_flush().unwrap()
+//         .wait(None).unwrap();
+
+//     let content = data_buffer.read().unwrap();
+
+//     for(n, val) in content.iter().enumerate() {
+//         assert_eq!(*val, n as u32 * 12);
+//     }
+
+//     println!("All done!");
+// }
+
+// fn image_example(d: Arc<Device>, q: Arc<Queue>) {
+//     let image = StorageImage::new(
+//         d.clone(),
+//         Dimensions::Dim2d { width: 1024, height: 1024 },
+//         Format::R8G8B8A8Unorm,
+//         Some(q.family())
+//     ).unwrap();
+
+//     let buffer = CpuAccessibleBuffer::from_iter(
+//         d.clone(),
+//         BufferUsage::all(),
+//         (0 .. 1024 * 1024 * 4).map(|_| 0u8)
+//     ).expect("Failed to create buffer");
+
+//     let command_buffer = AutoCommandBufferBuilder::new(d.clone(), q.family()).unwrap()
+//         .clear_color_image(image.clone(), ClearValue::Float([0.0, 0.0, 1.0, 1.0])).unwrap()
+//         .copy_image_to_buffer(image.clone(), buffer.clone()).unwrap()
+//         .build().unwrap();
+
+//     let finished = command_buffer.execute(q.clone()).unwrap();
+
+//     finished.then_signal_fence_and_flush().unwrap()
+//         .wait(None).unwrap();
+
+//     let buffer_content = buffer.read().unwrap();
+
+//     let image = ImageBuffer::<Rgba<u8>, _>::from_raw(1024, 1024, &buffer_content[..]).unwrap();
+
+//     image.save("image.png").unwrap();
+// }
+
+// fn render_example(d: Arc<Device>, q: Arc<Queue>) {
+//     let image = StorageImage::new(
+//         d.clone(),
+//         Dimensions::Dim2d { width: 1024, height: 1024 },
+//         Format::R8G8B8A8Unorm,
+//         Some(q.family())
+//     ).unwrap();
+
+//     let surface_instance = surface::Surface::zero();
+
+//     let vertex_buffer = CpuAccessibleBuffer::from_iter(
+//         d.clone(), 
+//         BufferUsage::all(), 
+//         surface_instance.vertices.into_iter()
+//     ).unwrap();
+
+//     let vs = vs::Shader::load(d.clone()).expect("Failed to load vertex shader");
+//     let fs = fs::Shader::load(d.clone()).expect("Failed to load fragment shader");
+
+//     let render_pass = Arc::new(
+//         single_pass_renderpass!(
+//             d.clone(),
+//             attachments: {
+//                 color: {
+//                     load: Clear,
+//                     store: Store,
+//                     format: Format::R8G8B8A8Unorm,
+//                     samples: 1,
+//                 }
+//             },
+//             pass: {
+//                 color: [color],
+//                 depth_stencil: {}
+//             }
+//         ).unwrap()
+//     );
+
+//     let framebuffer = Arc::new(
+//         Framebuffer::start(render_pass.clone())
+//         .add(image.clone()).unwrap()
+//         .build().unwrap()
+//     );
+
+//     let pipeline = Arc::new(GraphicsPipeline::start()
+//         .vertex_input_single_buffer::<Vertex>()
+//         .vertex_shader(vs.main_entry_point(), ())
+//         .viewports_dynamic_scissors_irrelevant(1)
+//         .fragment_shader(fs.main_entry_point(), ())
+//         .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+//         .build(d.clone()).unwrap()
+//     );
+
+//     let dynamic_state = DynamicState {
+//         viewports: Some(vec![
+//             Viewport {
+//                 origin: [0.0, 0.0],
+//                 dimensions: [1024.0, 1024.0],
+//                 depth_range: 0.0 .. 1.0,
+//             }
+//         ]),
+//         .. DynamicState::none()
+//     };
+
+//     let buffer = CpuAccessibleBuffer::from_iter(
+//         d.clone(),
+//         BufferUsage::all(),
+//         (0 .. 1024 * 1024 * 4).map(|_| 0u8)
+//     ).expect("Failed to create buffer");
+
+//     let command_buffer =
+//         AutoCommandBufferBuilder::primary_one_time_submit(
+//             d.clone(), 
+//             q.family()
+//         ).unwrap()
+//         .begin_render_pass(
+//             framebuffer.clone(),
+//             false,
+//             vec![[0.0, 0.0, 1.0, 1.0].into()]
+//         ).unwrap()
+//         .draw(
+//             pipeline.clone(),
+//             &dynamic_state,
+//             vertex_buffer.clone(),
+//             (),
+//             ()
+//         ).unwrap()
+//         .end_render_pass().unwrap()
+//         .copy_image_to_buffer(image.clone(), buffer.clone()).unwrap()
+//         .build().unwrap();
+
+//     let finished = command_buffer.execute(q.clone()).unwrap();
+
+//     finished.then_signal_fence_and_flush().unwrap()
+//         .wait(None).unwrap();
+
+//     let buffer_content = buffer.read().unwrap();
+
+//     let image_buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(1024, 1024, &buffer_content[..]).unwrap();
+
+//     image_buffer.save("triangle.png").unwrap();
+// }
