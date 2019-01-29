@@ -4,4 +4,4 @@ pub struct Vertex {
     pub uv: [f32; 2],
 }
 
-vulkano::impl_vertex!(Vertex, position);
+vulkano::impl_vertex!(Vertex, position, uv);

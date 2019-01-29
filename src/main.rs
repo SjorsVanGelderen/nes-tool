@@ -132,12 +132,16 @@ mod vs {
 #version 450
 
 layout(location = 0) in vec3 position;
-// layout(location = 1) in vec2 uv_in;
+layout(location = 1) in vec2 uv;
 
 // layout(location = 0) out vec2 uv_out;
 
 void main() {
     // gl_Position = mvp * vec4(position, 1);
+
+    // Dummy operation to validate use of uv
+    gl_Position = vec4(uv, 1, 1);
+
     gl_Position = vec4(position, 1);
 
     // uv_out = uv_in;
@@ -221,7 +225,8 @@ fn window_size_dependent_setup(
 }
 
 fn main() {
-    // TODO: Set up an orthogonal projection matrix and UVs. Then pass this information to the shaders with a descriptor.
+    // TODO: Set up an orthogonal projection matrix
+    // TODO: Supply uniform data to shader
 
     let instance = {
         let extensions = vulkano_win::required_extensions();
@@ -307,12 +312,9 @@ fn main() {
     ).unwrap();
 
     let vs = vs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create vertex shader");
-
-    // TODO: Supply uniform data to shader
-
     let fs = fs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create fragment shader");
 
-    // let mvp = glm::mat4(1.0);
+    let mvp = glm::mat4(1.0);
 
     // let data_buffer = CpuAccessibleBuffer::from_iter(device.clone(), BufferUsage::all(), data_iter).expect("Failed to create buffer");
 
