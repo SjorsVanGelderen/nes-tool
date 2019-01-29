@@ -1,7 +1,7 @@
 // Copyright 2019, Sjors van Gelderen
 
 #[macro_use]
-extern crate glm;
+extern crate cgmath;
 extern crate vulkano;
 extern crate vulkano_shaders;
 extern crate vulkano_win;
@@ -17,6 +17,11 @@ mod palette;
 mod surface;
 mod tool;
 mod vertex;
+
+use cgmath::{
+    Matrix4,
+    ortho,
+};
 
 // use image::{
 //     ImageBuffer,
@@ -314,7 +319,14 @@ fn main() {
     let vs = vs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create vertex shader");
     let fs = fs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create fragment shader");
 
-    let mvp = glm::mat4(1.0);
+    let mvp: Matrix4<f32> = ortho(
+      -100.0,
+      100.0,
+      -100.0,
+      100.0,
+      0.01,
+      100.0
+    );
 
     // let data_buffer = CpuAccessibleBuffer::from_iter(device.clone(), BufferUsage::all(), data_iter).expect("Failed to create buffer");
 
