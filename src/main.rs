@@ -129,27 +129,6 @@ use winit::{
     VirtualKeyCode,
 };
 
-// mod cs {
-//     vulkano_shaders::shader!{
-//         ty: "compute",
-//         src:
-// "
-// #version 450
-
-// layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
-
-// layout(set = 0, binding = 0) buffer Data {
-//     uint data[];
-// } buf;
-
-// void main() {
-//     uint index = gl_GlobalInvocationID.x;
-//     buf.data[index] *= 12;
-// }
-// "
-//     }
-// }
-
 mod vs {
     vulkano_shaders::shader!{
     ty: "vertex",
@@ -165,12 +144,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject
     mat4 mvp;
 } ubo;
 
-// TODO: Add uniform sampler here
-
 layout(location = 0) out vec2 uv_out;
 
 void main() {
-    // gl_Position = vec4(uv, uv); // Just so the compiler won't complain about uv
     gl_Position = ubo.mvp * vec4(position, 1);
 
     uv_out = uv;
@@ -188,19 +164,19 @@ mod fs {
 
 layout(location = 0) in vec2 uv;
 
+layout(set = 0, binding = 1) uniform sampler2D tex; 
+
 layout(location = 0) out vec4 color;
 
 void main() {
-    color = vec4(1.0, uv.x, uv.y, 1.0);
-    // color = vec4(1.0, 0.0, 1.0, 1.0);
+    color = vec4(texture(tex, uv).xyz, 1.0);
 }
 "
     }
 }
 
 fn get_physical_device(i: &Arc<Instance>) -> PhysicalDevice {
-    PhysicalDevice::enumerate(i).next()
-        .expect("No device found")
+    PhysicalDevice::enumerate(i).next().expect("No device found")
 }
 
 // fn enumerate_queues(p: PhysicalDevice) {
@@ -256,13 +232,12 @@ fn window_size_dependent_setup(
 fn main() {
     // TODO: Separate this into functions
 
-    let character = media::load_character(Path::new("./graphics.chr"));
+    // let character = media::load_character(Path::new("./graphics.chr"));
 
     let instance = {
         let extensions = vulkano_win::required_extensions();
         
-        Instance::new(None, &extensions, None).unwrap()
-            //.expect("Failed to create instance")
+        Instance::new(None, &extensions, None).expect("Failed to create instance")
     };
 
     let physical = get_physical_device(&instance);
@@ -272,6 +247,7 @@ fn main() {
     let mut events_loop = EventsLoop::new();
 
     let surface = WindowBuilder::new()
+        .with_title("NES Tool")
         .build_vk_surface(&events_loop, instance.clone())
         .unwrap();
 
@@ -283,17 +259,8 @@ fn main() {
 
     let queue = queues.next().unwrap();
 
-    // simple_cpu_buffer_example(device.clone(), queue.clone());
-
-    // compute_shader_example(device.clone(), queue.clone());
-
-    // image_example(device.clone(), queue.clone());
-
-    // render_example(device.clone(), queue.clone());
-
     let (mut swapchain, images) = {
-        let capabilities = surface.capabilities(physical).unwrap();
-            // .expect("Failed to get surface capabilities");
+        let capabilities = surface.capabilities(physical).expect("Failed to get surface capabilities");
 
         let alpha = capabilities.supported_composite_alpha.iter().next().unwrap();
 
@@ -324,7 +291,7 @@ fn main() {
             PresentMode::Fifo,
             true,
             None
-        ).unwrap() //.expect("Failed to create swapchain")
+        ).expect("Failed to create swapchain")
     };
 
     let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(50.0, 50.0));
@@ -341,8 +308,8 @@ fn main() {
         my_surface.indices.iter().cloned()
     ).unwrap();
 
-    let vs = vs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create vertex shader");
-    let fs = fs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create fragment shader");
+    let vs = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
+    let fs = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
 
     let render_pass = Arc::new(
         vulkano::single_pass_renderpass!(
@@ -412,24 +379,40 @@ fn main() {
     //     ).unwrap()
     // };
 
-    // let sampler = Sampler::new(
-    //     device.clone(),
-    //     Filter::Linear,
-    //     Filter::Linear,
-    //     MipmapMode::Nearest,
-    //     SamplerAddressMode::Repeat,
-    //     SamplerAddressMode::Repeat,
-    //     SamplerAddressMode::Repeat,
-    //     0.0,
-    //     1.0,
-    //     0.0,
-    //     0.0
-    // ).unwrap();
+    let (texture, tex_future) = {
+        // The sampler should contain the numbers corresponding to the sample colors for the character
+        // It's Unorm instead of Uint because Uint is not supported for this use case
+
+        // 512 * 256 = 131072
+        let mut image_data: [u8; 131072] = [0u8; 131072];
+        
+        for (i, x) in (0..131072).map(|_| 255u8).enumerate() {
+            image_data[i] = x;
+        }
+
+        ImmutableImage::from_iter(
+            (0..131072).map(|_| 255u8),
+            Dimensions::Dim2d { width: 512, height: 256 },
+            Format::R8Unorm,
+            queue.clone()
+        ).unwrap()
+    };
+
+    let sampler = Sampler::new(
+        device.clone(),
+        Filter::Linear,
+        Filter::Linear,
+        MipmapMode::Nearest,
+        SamplerAddressMode::Repeat,
+        SamplerAddressMode::Repeat,
+        SamplerAddressMode::Repeat,
+        0.0, 1.0, 0.0, 0.0
+    ).unwrap();
 
     let descriptor_set = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
         .add_buffer(data_buffer.clone()).unwrap()
-        // .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
+        .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
         .build().unwrap()
     );
 
@@ -443,9 +426,8 @@ fn main() {
 
     let mut recreate_swapchain = false;
 
-    // let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
-
-    let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
+    let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
+    // let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
 
     loop {
         previous_frame_end.cleanup_finished();
