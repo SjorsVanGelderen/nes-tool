@@ -1,5 +1,9 @@
 // Copyright 2019, Sjors van Gelderen
 
+use cgmath::{
+    Vector2,
+};
+
 use crate::vertex::Vertex;
 
 pub struct Surface {
@@ -8,12 +12,15 @@ pub struct Surface {
 }
 
 impl Surface {
-    pub fn zero() -> Surface {
+    pub fn zero(position: Vector2<f32>, dimensions: Vector2<f32>) -> Surface {
+        let p = position;
+        let d = dimensions;
+
         let positions: [[f32; 3]; 4] = [
-            [-0.5, -0.5, 1.0],
-            [-0.5,  0.5, 1.0],
-            [ 0.5,  0.5, 1.0],
-            [ 0.5, -0.5, 1.0],
+            [ p.x / 2.0 - d.x / 2.0, p.y / 2.0 - d.y / 2.0, 1.0],
+            [ p.x / 2.0 - d.x / 2.0, p.y / 2.0 + d.y / 2.0, 1.0],
+            [ p.x / 2.0 + d.x / 2.0, p.y / 2.0 + d.y / 2.0, 1.0],
+            [ p.x / 2.0 + d.x / 2.0, p.y / 2.0 - d.y / 2.0, 1.0],
         ];
 
         let uvs: [[f32; 2]; 4] = [

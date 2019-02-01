@@ -1,25 +1,36 @@
 // Copyright 2019, Sjors van Gelderen
 
-#[macro_use]
 extern crate cgmath;
+extern crate image;
 extern crate vulkano;
 extern crate vulkano_shaders;
 extern crate vulkano_win;
 extern crate winit;
-// extern crate image;
 
-use crate::vertex::Vertex;
+use crate::attribute_table::AttributeTable;
+use crate::character::Character;
+use crate::nametable::Nametable;
+use crate::samples::Samples;
 use crate::surface::Surface;
+use crate::vertex::Vertex;
 
+mod attribute_table;
+mod character;
 mod media;
 mod mode;
+mod nametable;
 mod palette;
+mod samples;
 mod surface;
 mod tool;
 mod vertex;
 
 use cgmath::{
     Matrix4,
+    Point3,
+    SquareMatrix,
+    Vector2,
+    Vector3,
     ortho,
 };
 
@@ -27,6 +38,8 @@ use cgmath::{
 //     ImageBuffer,
 //     Rgba,
 // };
+
+use std::path::Path;
 
 use std::sync::Arc;
 
@@ -65,6 +78,7 @@ use vulkano::framebuffer::{
 
 use vulkano::image::{
     Dimensions,
+    ImmutableImage,
     StorageImage,
     SwapchainImage,
 };
@@ -80,6 +94,13 @@ use vulkano::pipeline::{
     ComputePipeline,
     GraphicsPipeline,
     viewport::Viewport,
+};
+
+use vulkano::sampler::{
+    Sampler,
+    SamplerAddressMode,
+    Filter,
+    MipmapMode
 };
 
 use vulkano::swapchain::{
@@ -139,17 +160,20 @@ mod vs {
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
 
-// layout(location = 0) out vec2 uv_out;
+layout(set = 0, binding = 0) uniform UniformBufferObject
+{
+    mat4 mvp;
+} ubo;
+
+// TODO: Add uniform sampler here
+
+layout(location = 0) out vec2 uv_out;
 
 void main() {
-    // gl_Position = mvp * vec4(position, 1);
+    // gl_Position = vec4(uv, uv); // Just so the compiler won't complain about uv
+    gl_Position = ubo.mvp * vec4(position, 1);
 
-    // Dummy operation to validate use of uv
-    gl_Position = vec4(uv, 1, 1);
-
-    gl_Position = vec4(position, 1);
-
-    // uv_out = uv_in;
+    uv_out = uv;
 }
 "
     }
@@ -162,13 +186,13 @@ mod fs {
 "
 #version 450
 
-// layout(location = 0) in vec2 uv;
+layout(location = 0) in vec2 uv;
 
 layout(location = 0) out vec4 color;
 
 void main() {
-    // color = vec4(1.0, uv.x, uv.y, 1.0);
-    color = vec4(1.0, 0.0, 1.0, 1.0);
+    color = vec4(1.0, uv.x, uv.y, 1.0);
+    // color = vec4(1.0, 0.0, 1.0, 1.0);
 }
 "
     }
@@ -230,8 +254,9 @@ fn window_size_dependent_setup(
 }
 
 fn main() {
-    // TODO: Set up an orthogonal projection matrix
-    // TODO: Supply uniform data to shader
+    // TODO: Separate this into functions
+
+    let character = media::load_character(Path::new("./graphics.chr"));
 
     let instance = {
         let extensions = vulkano_win::required_extensions();
@@ -302,7 +327,7 @@ fn main() {
         ).unwrap() //.expect("Failed to create swapchain")
     };
 
-    let my_surface = Surface::zero();
+    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(50.0, 50.0));
 
     let vertex_buffer = CpuAccessibleBuffer::from_iter(
         device.clone(), 
@@ -318,23 +343,6 @@ fn main() {
 
     let vs = vs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create vertex shader");
     let fs = fs::Shader::load(device.clone()).unwrap(); //.expect("Failed to create fragment shader");
-
-    let mvp: Matrix4<f32> = ortho(
-      -100.0,
-      100.0,
-      -100.0,
-      100.0,
-      0.01,
-      100.0
-    );
-
-    // let data_buffer = CpuAccessibleBuffer::from_iter(device.clone(), BufferUsage::all(), data_iter).expect("Failed to create buffer");
-
-    // let descriptor_set = Arc::new(
-    //     PersistentDescriptorSet::start(pipeline.clone(), 0)
-    //     .add_buffer(data_buffer.clone()).unwrap()
-    //     .build().unwrap()
-    // );
 
     let render_pass = Arc::new(
         vulkano::single_pass_renderpass!(
@@ -366,6 +374,65 @@ fn main() {
             .unwrap()
     );
 
+    let projection: Matrix4<f32> = ortho(
+        -100.0, 100.0,
+        -100.0, 100.0,
+        0.01, 100.0
+    );
+    
+    let view: Matrix4<f32> = Matrix4::look_at(
+        Point3::new(0.0, 0.0, -1.0),
+        Point3::new(0.0, 0.0, 0.0),
+        Vector3::new(0.0, 1.0, 0.0)
+    );
+
+    let model: Matrix4<f32> = Matrix4::identity();
+
+    let mvp: Matrix4<f32> = model * view * projection;
+
+    let data_buffer = CpuAccessibleBuffer::from_data(
+        device.clone(),
+        BufferUsage::all(),
+        mvp
+    ).expect("Failed to create buffer");
+
+    // let (texture, tex_future) = {
+    //     let image = image::load_from_memory_with_format(
+    //         include_bytes!("image.png"),
+    //         ImageFormat::PNG
+    //     ).unwrap().to_rgba();
+
+    //     let image_data = image.into_raw().clone();
+
+    //     ImmutableImage::from_iter(
+    //         image_data.iter().cloned(),
+    //         Dimensions::Dim2d { width: 256, height: 256 },
+    //         Format::R8G8B8A8Srgb,
+    //         queue.clone()
+    //     ).unwrap()
+    // };
+
+    // let sampler = Sampler::new(
+    //     device.clone(),
+    //     Filter::Linear,
+    //     Filter::Linear,
+    //     MipmapMode::Nearest,
+    //     SamplerAddressMode::Repeat,
+    //     SamplerAddressMode::Repeat,
+    //     SamplerAddressMode::Repeat,
+    //     0.0,
+    //     1.0,
+    //     0.0,
+    //     0.0
+    // ).unwrap();
+
+    let descriptor_set = Arc::new(
+        PersistentDescriptorSet::start(pipeline.clone(), 0)
+        .add_buffer(data_buffer.clone()).unwrap()
+        // .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
+        .build().unwrap()
+    );
+
     let mut dynamic_state = DynamicState {
         line_width: None, 
         viewports: None, 
@@ -375,6 +442,8 @@ fn main() {
     let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
 
     let mut recreate_swapchain = false;
+
+    // let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
 
     let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
 
@@ -430,7 +499,7 @@ fn main() {
             &dynamic_state,
             vertex_buffer.clone(),
             index_buffer.clone(),
-            (),
+            descriptor_set.clone(),
             ()
         ).unwrap()
         .end_render_pass().unwrap()
