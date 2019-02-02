@@ -234,8 +234,6 @@ fn window_size_dependent_setup(
 fn main() {
     // TODO: Separate this into functions
 
-    // let character = media::load_character(Path::new("./graphics.chr"));
-
     let instance = {
         let extensions = vulkano_win::required_extensions();
         
@@ -348,8 +346,6 @@ fn main() {
         -100.0, 100.0,
         0.01, 100.0
     );
-
-    // TODO: Consider the Vulkan coordinate system
     
     let view: Matrix4<f32> = Matrix4::look_at(
         Point3::new(0.0, 0.0, -1.0),
@@ -473,7 +469,7 @@ fn main() {
                 Err(err) => panic!("{:?}", err)
             };
 
-        let clear_values = vec!([0.0, 0.0, 1.0, 1.0].into());
+        let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
 
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             device.clone(),
