@@ -294,7 +294,7 @@ fn main() {
         ).expect("Failed to create swapchain")
     };
 
-    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(100.0, 50.0));
+    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(200.0, 100.0));
 
     let vertex_buffer = CpuAccessibleBuffer::from_iter(
         device.clone(), 
