@@ -1,7 +1,7 @@
 // Copyright 2019, Sjors van Gelderen
 
 use crate::attribute_table::AttributeTable;
-use crate::character::Character;
+use crate::pattern_table::PatternTable;
 use crate::nametable::Nametable;
 use crate::samples::Samples;
 
@@ -14,22 +14,30 @@ use std::io::{
 
 use std::path::Path;
 
-pub fn load_character(path: &Path) -> Result<Character> {
+pub fn load_pattern_table(path: &Path) -> Result<PatternTable> {
     let mut file = File::open(&path)?;
     let mut buffer: [u8; 8192] = [0u8; 8192]; // 8KB of graphics
 
     file.read(&mut buffer)?;
 
-    let mut character: [u8; 32768] = [0u8; 32768]; // 512 tiles of 64 pixels
+    let mut pixels: [u8; 32768] = [0u8; 32768]; // 512 tiles of 64 pixels
 
-    for (tile_index, tile) in buffer.chunks(16).into_iter().enumerate() {
+    // TODO: Consider how to read the data into pixels so that the pages are clearly separated
+
+    for (i, tile) in buffer.chunks(16).into_iter().enumerate() {
         for y in 0..8 {
             for x in 0..8 {
                 let test = 0b10000000 >> x;
                 let lower = tile[y] & test;
                 let higher = tile[y + 8] & test;
 
-                character[tile_index * 64 + y * 8 + x] =
+                // Different layout:
+                // pixels[tile_index * 64 + y * 8 + x]
+
+                let tile_x_offset = i % 32 * 8;
+                let tile_y_offset = (i as f32 / 32.0).floor() as usize * 256 * 8;
+
+                pixels[tile_y_offset + tile_x_offset + y * 256 + x] =
                     match (lower > 0u8, higher > 0u8) {
                         (true, true) => 3u8,
                         (false, true) => 2u8,
@@ -40,18 +48,20 @@ pub fn load_character(path: &Path) -> Result<Character> {
         }
     }
 
-    for y in 0..8 {
-        for x in 0..8 {
-            let b = character[y * 8 + x];
-            print!("{:?}", b);
-        }
-        println!();
-    }
+    // for y in 0..8 {
+    //     for x in 0..8 {
+    //         let b = pixels[y * 8 + x];
+    //         print!("{:?}", b);
+    //     }
+    //     println!();
+    // }
 
-    // TODO: Convert the graphics data into a GLSL sampler
-    // where every texel is a GL_RED value
+    let pattern: PatternTable = PatternTable {
+        bytes: buffer,
+        pixels: pixels,
+    };
 
-    Ok(Character::zero())
+    Ok(pattern)
 }
 
 pub fn load_samples(path: &Path) -> Result<Samples> {

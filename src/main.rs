@@ -8,18 +8,18 @@ extern crate vulkano_win;
 extern crate winit;
 
 use crate::attribute_table::AttributeTable;
-use crate::character::Character;
+use crate::pattern_table::PatternTable;
 use crate::nametable::Nametable;
 use crate::samples::Samples;
 use crate::surface::Surface;
 use crate::vertex::Vertex;
 
 mod attribute_table;
-mod character;
 mod media;
 mod mode;
 mod nametable;
 mod palette;
+mod pattern_table;
 mod samples;
 mod surface;
 mod tool;
@@ -38,6 +38,8 @@ use cgmath::{
 //     ImageBuffer,
 //     Rgba,
 // };
+
+use std::error::Error;
 
 use std::path::Path;
 
@@ -169,7 +171,7 @@ layout(set = 0, binding = 1) uniform sampler2D tex;
 layout(location = 0) out vec4 color;
 
 void main() {
-    color = vec4(texture(tex, uv).xyz, 1.0);
+    color = vec4(texture(tex, uv).xxx, 1.0);
 }
 "
     }
@@ -294,7 +296,7 @@ fn main() {
         ).expect("Failed to create swapchain")
     };
 
-    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(50.0, 50.0));
+    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(100.0, 100.0));
 
     let vertex_buffer = CpuAccessibleBuffer::from_iter(
         device.clone(), 
@@ -346,11 +348,13 @@ fn main() {
         -100.0, 100.0,
         0.01, 100.0
     );
+
+    // TODO: Consider the Vulkan coordinate system
     
     let view: Matrix4<f32> = Matrix4::look_at(
         Point3::new(0.0, 0.0, -1.0),
         Point3::new(0.0, 0.0, 0.0),
-        Vector3::new(0.0, 1.0, 0.0)
+        Vector3::new(0.0, -1.0, 0.0)
     );
 
     let model: Matrix4<f32> = Matrix4::identity();
@@ -380,19 +384,23 @@ fn main() {
     // };
 
     let (texture, tex_future) = {
-        // The sampler should contain the numbers corresponding to the sample colors for the character
-        // It's Unorm instead of Uint because Uint is not supported for this use case
+        let pattern: pattern_table::PatternTable =
+            match media::load_pattern_table(Path::new("mario.chr")) {
+                Ok(p) => p,
+                Err(e) => panic!(e),
+            };
 
-        // 512 * 256 = 131072
-        let mut image_data: [u8; 131072] = [0u8; 131072];
+        let mut image_data: [u8; 32768] = [0u8; 32768];
         
-        for (i, x) in (0..131072).map(|_| 255u8).enumerate() {
-            image_data[i] = x;
+        for (i, x) in pattern.pixels.iter().enumerate() {
+            let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
+
+            image_data[i] = pixel;
         }
 
         ImmutableImage::from_iter(
-            (0..131072).map(|_| 255u8),
-            Dimensions::Dim2d { width: 512, height: 256 },
+            image_data.iter().cloned(),
+            Dimensions::Dim2d { width: 256, height: 128 },
             Format::R8Unorm,
             queue.clone()
         ).unwrap()
@@ -400,12 +408,12 @@ fn main() {
 
     let sampler = Sampler::new(
         device.clone(),
-        Filter::Linear,
-        Filter::Linear,
+        Filter::Nearest,
+        Filter::Nearest,
         MipmapMode::Nearest,
-        SamplerAddressMode::Repeat,
-        SamplerAddressMode::Repeat,
-        SamplerAddressMode::Repeat,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
         0.0, 1.0, 0.0, 0.0
     ).unwrap();
 
