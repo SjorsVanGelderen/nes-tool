@@ -24,29 +24,44 @@ pub fn load_pattern_table(path: &Path) -> Result<PatternTable> {
 
     // TODO: Consider how to read the data into pixels so that the pages are clearly separated
 
-    for (i, tile) in buffer.chunks(16).into_iter().enumerate() {
-        for y in 0..8 {
-            for x in 0..8 {
-                let test = 0b10000000 >> x;
-                let lower = tile[y] & test;
-                let higher = tile[y + 8] & test;
+    for page_index in 0..2 {
+        let page_start = page_index * 4096;
+        let page_end = page_start + 4096;
 
-                // Different layout:
-                // pixels[tile_index * 64 + y * 8 + x]
+        // The type of page is wrong
+        // let page: &[u8] = match buffer.get(page_offset..page_limit) {
+        //     Some(p) => p,
+        //     _ => panic!("Failed to get page"),
+        // };
 
-                let tile_x_offset = i % 32 * 8;
-                let tile_y_offset = (i as f32 / 32.0).floor() as usize * 256 * 8;
+        let page = &buffer[page_start..page_end];
 
-                pixels[tile_y_offset + tile_x_offset + y * 256 + x] =
-                    match (lower > 0u8, higher > 0u8) {
-                        (true, true) => 3u8,
-                        (false, true) => 2u8,
-                        (true, false) => 1u8,
-                        (false, false) => 0u8
-                    };
+        for (i, tile) in page.chunks(16).into_iter().enumerate() {
+            let page_offset = page_index * 128;
+            let tile_x_offset = i % 16 * 8;
+            let tile_y_offset = (i as f32 / 16.0).floor() as usize * 256 * 8;
+
+            for y in 0..8 {
+                for x in 0..8 {
+                    let test = 0b10000000 >> x;
+                    let lower = tile[y] & test;
+                    let higher = tile[y + 8] & test;
+
+                    // Different layout:
+                    // pixels[tile_index * 64 + y * 8 + x]
+
+                    pixels[page_offset + tile_y_offset + tile_x_offset + y * 256 + x] =
+                        match (lower > 0u8, higher > 0u8) {
+                            (true, true) => 3u8,
+                            (false, true) => 2u8,
+                            (true, false) => 1u8,
+                            (false, false) => 0u8
+                        };
+                }
             }
         }
     }
+    
 
     // for y in 0..8 {
     //     for x in 0..8 {
