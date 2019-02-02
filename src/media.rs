@@ -27,13 +27,6 @@ pub fn load_pattern_table(path: &Path) -> Result<PatternTable> {
     for page_index in 0..2 {
         let page_start = page_index * 4096;
         let page_end = page_start + 4096;
-
-        // The type of page is wrong
-        // let page: &[u8] = match buffer.get(page_offset..page_limit) {
-        //     Some(p) => p,
-        //     _ => panic!("Failed to get page"),
-        // };
-
         let page = &buffer[page_start..page_end];
 
         for (i, tile) in page.chunks(16).into_iter().enumerate() {
@@ -61,15 +54,6 @@ pub fn load_pattern_table(path: &Path) -> Result<PatternTable> {
             }
         }
     }
-    
-
-    // for y in 0..8 {
-    //     for x in 0..8 {
-    //         let b = pixels[y * 8 + x];
-    //         print!("{:?}", b);
-    //     }
-    //     println!();
-    // }
 
     let pattern: PatternTable = PatternTable {
         bytes: buffer,
