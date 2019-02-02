@@ -294,7 +294,7 @@ fn main() {
         ).expect("Failed to create swapchain")
     };
 
-    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(100.0, 100.0));
+    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(100.0, 50.0));
 
     let vertex_buffer = CpuAccessibleBuffer::from_iter(
         device.clone(), 
@@ -341,21 +341,23 @@ fn main() {
             .unwrap()
     );
 
-    let projection: Matrix4<f32> = ortho(
-        -100.0, 100.0,
+    let mut aspect: f32 = 4.0 / 3.0;
+
+    let mut projection: Matrix4<f32> = ortho(
+        -100.0 * aspect, 100.0 * aspect,
         -100.0, 100.0,
         0.01, 100.0
     );
     
-    let view: Matrix4<f32> = Matrix4::look_at(
+    let mut view: Matrix4<f32> = Matrix4::look_at(
         Point3::new(0.0, 0.0, -1.0),
         Point3::new(0.0, 0.0, 0.0),
         Vector3::new(0.0, -1.0, 0.0)
     );
 
-    let model: Matrix4<f32> = Matrix4::identity();
+    let mut model: Matrix4<f32> = Matrix4::identity();
 
-    let mvp: Matrix4<f32> = model * view * projection;
+    let mut mvp: Matrix4<f32> = model * view * projection;
 
     let data_buffer = CpuAccessibleBuffer::from_data(
         device.clone(),
@@ -439,6 +441,15 @@ fn main() {
         if recreate_swapchain {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
+
+                aspect = dimensions.0 as f32 / dimensions.1 as f32;
+
+                projection = ortho(
+                    -100.0 * aspect, 100.0 * aspect,
+                    -100.0, 100.0,
+                    0.01, 100.0
+                );
+
                 [dimensions.0, dimensions.1]
             }
             else {
