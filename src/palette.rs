@@ -1,3 +1,7 @@
+use cgmath::Vector2;
+
+use crate::surface::Surface;
+
 struct Palette {
     // color_indices: [u32; 26],
 }
@@ -15,6 +19,10 @@ impl Palette {
 
     //     Palette { color_indices: color_indices, ..self }
     // }
+}
+
+pub fn surface_zero() -> Surface {
+    Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(16.0, 4.0))
 }
 
 // let full_palette: [u8; 192] = [ 

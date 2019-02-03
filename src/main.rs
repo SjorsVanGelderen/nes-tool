@@ -131,106 +131,6 @@ use winit::{
     VirtualKeyCode,
 };
 
-mod vs {
-    vulkano_shaders::shader!{
-    ty: "vertex",
-    src:
-"
-#version 450
-
-layout(location = 0) in vec3 position;
-layout(location = 1) in vec2 uv;
-
-layout(set = 0, binding = 0) uniform UniformBufferObject
-{
-    mat4 mvp;
-} ubo;
-
-layout(location = 0) out vec2 uv_out;
-
-void main() {
-    gl_Position = ubo.mvp * vec4(position, 1);
-
-    uv_out = uv;
-}
-"
-    }
-}
-
-mod fs {
-    vulkano_shaders::shader!{
-        ty: "fragment",
-        src:
-"
-#version 450
-
-layout(location = 0) in vec2 uv;
-
-layout(set = 0, binding = 1) uniform sampler2D tex; 
-
-layout(location = 0) out vec4 color;
-
-void main() {
-    color = vec4(texture(tex, uv).xxx, 1.0);
-}
-"
-    }
-}
-
-fn get_physical_device(i: &Arc<Instance>) -> PhysicalDevice {
-    PhysicalDevice::enumerate(i).next().expect("No device found")
-}
-
-// fn enumerate_queues(p: PhysicalDevice) {
-//     for family in p.queue_families() {
-//         println!("Found a queue family with {:?} queue(s)", family.queues_count());
-//     }
-// }
-
-fn get_queue_family(p: PhysicalDevice) -> QueueFamily {
-    p.queue_families()
-        .find(|&q| q.supports_graphics())
-        .expect("No graphical queues found")
-}
-
-fn get_device_and_queues(p: PhysicalDevice, q: QueueFamily) -> (Arc<Device>, QueuesIter) {
-    let extensions = vulkano::device::DeviceExtensions {
-        khr_swapchain: true,
-        .. vulkano::device::DeviceExtensions::none()
-    };
-
-    Device::new(
-        p,
-        p.supported_features(),
-        &extensions,
-        [(q, 0.5)].iter().cloned()
-    ).expect("Failed to create device")
-}
-
-fn window_size_dependent_setup(
-    images: &[Arc<SwapchainImage<Window>>],
-    render_pass: Arc<RenderPassAbstract + Send + Sync>,
-    dynamic_state: &mut DynamicState
-) -> Vec<Arc<FramebufferAbstract + Send + Sync>> {
-    let dimensions = images[0].dimensions();
-
-    let viewport = Viewport {
-        origin: [0.0, 0.0],
-        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-        depth_range: 0.0 .. 1.0,
-    };
-
-    dynamic_state.viewports = Some(vec!(viewport));
-
-    images.iter().map(|image| {
-        Arc::new(
-            Framebuffer::start(render_pass.clone())
-                .add(image.clone()).unwrap()
-                .build().unwrap()
-        ) as Arc<FramebufferAbstract + Send + Sync>
-    }).collect::<Vec<_>>()
-}
-
 fn main() {
     // TODO: Separate this into functions
 
@@ -294,22 +194,24 @@ fn main() {
         ).expect("Failed to create swapchain")
     };
 
-    let my_surface = Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(200.0, 100.0));
+    let pattern_table_surface: Surface = pattern_table::surface_zero();
 
     let vertex_buffer = CpuAccessibleBuffer::from_iter(
         device.clone(), 
         BufferUsage::all(),
-        my_surface.vertices.iter().cloned()
+        pattern_table_surface.vertices.iter().cloned()
     ).unwrap();
 
     let index_buffer = CpuAccessibleBuffer::from_iter(
         device.clone(),
         BufferUsage::all(),
-        my_surface.indices.iter().cloned()
+        pattern_table_surface.indices.iter().cloned()
     ).unwrap();
 
-    let vs = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
-    let fs = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
+    let vs = pattern_table::vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
+    let fs = pattern_table::fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
+
+    // let palette_surface: Surface = palette::surface_zero();
 
     let render_pass = Arc::new(
         vulkano::single_pass_renderpass!(
@@ -442,13 +344,17 @@ fn main() {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
 
+                // This isn't quite correct, or isn't updated in the shader uniform
+
                 aspect = dimensions.0 as f32 / dimensions.1 as f32;
 
-                projection = ortho(
-                    -100.0 * aspect, 100.0 * aspect,
-                    -100.0, 100.0,
-                    0.01, 100.0
-                );
+                // projection = ortho(
+                //     -100.0 * aspect, 100.0 * aspect,
+                //     -100.0, 100.0,
+                //     0.01, 100.0
+                // );
+
+                // mvp = model * view * projection;
 
                 [dimensions.0, dimensions.1]
             }
@@ -536,7 +442,7 @@ fn main() {
                 Event::WindowEvent {
                     event: WindowEvent::CursorMoved { position, .. },
                     ..
-                } => println!("Cursor position: {0}, {1}", position.x, position.y),
+                } => (), //println!("Cursor position: {0}, {1}", position.x, position.y),
                 Event::WindowEvent {
                     event: WindowEvent::KeyboardInput { 
                         input: KeyboardInput {
@@ -559,7 +465,58 @@ fn main() {
             return;
         }
     }
+}
 
-    // For reference:
-    // https://github.com/vulkano-rs/vulkano-examples/blob/master/src/bin/triangle.rs
+fn get_physical_device(i: &Arc<Instance>) -> PhysicalDevice {
+    PhysicalDevice::enumerate(i).next().expect("No device found")
+}
+
+// fn enumerate_queues(p: PhysicalDevice) {
+//     for family in p.queue_families() {
+//         println!("Found a queue family with {:?} queue(s)", family.queues_count());
+//     }
+// }
+
+fn get_queue_family(p: PhysicalDevice) -> QueueFamily {
+    p.queue_families()
+        .find(|&q| q.supports_graphics())
+        .expect("No graphical queues found")
+}
+
+fn get_device_and_queues(p: PhysicalDevice, q: QueueFamily) -> (Arc<Device>, QueuesIter) {
+    let extensions = vulkano::device::DeviceExtensions {
+        khr_swapchain: true,
+        .. vulkano::device::DeviceExtensions::none()
+    };
+
+    Device::new(
+        p,
+        p.supported_features(),
+        &extensions,
+        [(q, 0.5)].iter().cloned()
+    ).expect("Failed to create device")
+}
+
+fn window_size_dependent_setup(
+    images: &[Arc<SwapchainImage<Window>>],
+    render_pass: Arc<RenderPassAbstract + Send + Sync>,
+    dynamic_state: &mut DynamicState
+) -> Vec<Arc<FramebufferAbstract + Send + Sync>> {
+    let dimensions = images[0].dimensions();
+
+    let viewport = Viewport {
+        origin: [0.0, 0.0],
+        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+        depth_range: 0.0 .. 1.0,
+    };
+
+    dynamic_state.viewports = Some(vec!(viewport));
+
+    images.iter().map(|image| {
+        Arc::new(
+            Framebuffer::start(render_pass.clone())
+                .add(image.clone()).unwrap()
+                .build().unwrap()
+        ) as Arc<FramebufferAbstract + Send + Sync>
+    }).collect::<Vec<_>>()
 }
