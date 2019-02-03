@@ -1,3 +1,5 @@
+// Copyright 2019, Sjors van Gelderen
+
 #[derive(Debug, Copy, Clone)]
 pub struct Vertex {
     pub position: [f32; 3],

@@ -1,3 +1,5 @@
+// Copyright 2019, Sjors van Gelderen
+
 pub struct Samples {
     
 }

@@ -7,14 +7,16 @@ extern crate vulkano_shaders;
 extern crate vulkano_win;
 extern crate winit;
 
-use crate::attribute_table::AttributeTable;
-use crate::pattern_table::PatternTable;
-use crate::nametable::Nametable;
-use crate::samples::Samples;
-use crate::surface::Surface;
-use crate::vertex::Vertex;
+// use crate::attribute_table::AttributeTable;
+// use crate::app_state::AppState;
+// use crate::pattern_table::PatternTable;
+// use crate::nametable::Nametable;
+// use crate::samples::Samples;
+// use crate::surface::Surface;
+// use crate::vertex::Vertex;
 
 mod attribute_table;
+mod app_state;
 mod media;
 mod mode;
 mod nametable;
@@ -192,8 +194,12 @@ fn main() {
         ).expect("Failed to create swapchain")
     };
 
-    let pattern_table_surface: Surface = pattern_table::surface_zero();
+    let app_state: app_state::AppState = app_state::AppState::zero();
 
+    let pattern_table_surface: surface::Surface = pattern_table::surface_zero();
+
+    // TODO: Get rid of CpuAccessibleBuffer as it will probably be deprecated
+    // Perhaps check https://docs.rs/vulkano/0.11.1/vulkano/pipeline/vertex/index.html ?
     let vertex_buffer = CpuAccessibleBuffer::from_iter(
         device.clone(), 
         BufferUsage::all(),
@@ -206,10 +212,11 @@ fn main() {
         pattern_table_surface.indices.iter().cloned()
     ).unwrap();
 
-    let vs = pattern_table::vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
-    let fs = pattern_table::fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
+    let pattern_table_vs = pattern_table::vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
+    let pattern_table_fs = pattern_table::fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
 
-    // let palette_surface: Surface = palette::surface_zero();
+    // TODO: The palette table needs its own shaders
+    let palette_surface: surface::Surface = palette::surface_zero();
 
     let render_pass = Arc::new(
         vulkano::single_pass_renderpass!(
@@ -229,13 +236,14 @@ fn main() {
         ).unwrap()
     );
 
+    // TODO: Need to add information about the palette table here
     let pipeline = Arc::new(
         GraphicsPipeline::start()
             .vertex_input_single_buffer()
-            .vertex_shader(vs.main_entry_point(), ())
+            .vertex_shader(pattern_table_vs.main_entry_point(), ())
             .triangle_list()
             .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(fs.main_entry_point(), ())
+            .fragment_shader(pattern_table_fs.main_entry_point(), ())
             .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
             .build(device.clone())
             .unwrap()
@@ -259,17 +267,7 @@ fn main() {
 
     let mut mvp: Matrix4<f32> = model * view * projection;
 
-    // TODO: Figure out a better way to supply a mat4 as a push constant
-    // TODO: Try updating this value and syncing it with what's used by the shader
-    let push_constants = pattern_table::vs::ty::Matrices {
-        mvp: [
-            [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
-            [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
-            [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
-            [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
-        ],
-    };
-
+    // TODO: Move this logic to the pattern table module
     let (texture, tex_future) = {
         let pattern: pattern_table::PatternTable =
             match media::load_pattern_table(Path::new("mario.chr")) {
@@ -310,6 +308,30 @@ fn main() {
         .build().unwrap()
     );
 
+    // let (texture, tex_future) = {
+    //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
+    //         |x| vec![x[0], x[1], x[2], 255u8]
+    //     ).collect();
+
+    //     ImmutableImage::from_iter(
+    //         image_data.iter().cloned(),
+    //         Dimensions::Dim2d { width: 16, height: 4 },
+    //         Format::R8G8B8A8Unorm,
+    //         queue.clone()
+    //     ).unwrap()
+    // };
+
+    // let sampler = Sampler::new(
+    //     device.clone(),
+    //     Filter::Nearest,
+    //     Filter::Nearest,
+    //     MipmapMode::Nearest,
+    //     SamplerAddressMode::ClampToEdge,
+    //     SamplerAddressMode::ClampToEdge,
+    //     SamplerAddressMode::ClampToEdge,
+    //     0.0, 1.0, 0.0, 0.0
+    // ).unwrap();
+
     let mut dynamic_state = DynamicState {
         line_width: None, 
         viewports: None, 
@@ -330,8 +352,6 @@ fn main() {
         if recreate_swapchain {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
-
-                // TODO: This isn't quite correct, or isn't updated in the shader uniform
 
                 aspect = dimensions.0 as f32 / dimensions.1 as f32;
 
@@ -362,6 +382,16 @@ fn main() {
 
             recreate_swapchain = false;
         }
+
+        // TODO: Figure out a better way to supply a mat4 as a push constant
+        let push_constants = pattern_table::vs::ty::Matrices {
+            mvp: [
+                [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
+                [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
+                [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
+                [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
+            ],
+        };
 
         let (image_number, acquire_future) =
             match acquire_next_image(swapchain.clone(), None) {

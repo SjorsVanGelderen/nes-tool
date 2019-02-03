@@ -1,3 +1,5 @@
+// Copyright 2019, Sjors van Gelderen
+
 use cgmath::Vector2;
 
 use crate::surface::Surface;

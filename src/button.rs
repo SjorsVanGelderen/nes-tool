@@ -1,3 +1,5 @@
+// Copyright 2019, Sjors van Gelderen
+
 // let (texture, tex_future) = {
 //     let image = image::load_from_memory_with_format(
 //         include_bytes!("pencil.png"),
