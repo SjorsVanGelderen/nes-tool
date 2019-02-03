@@ -30,15 +30,19 @@ pub mod vs {
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
 
-layout(set = 0, binding = 0) uniform UniformBufferObject
-{
+// layout(set = 0, binding = 0) uniform UniformBufferObject
+// {
+//     mat4 mvp;
+// } ubo;
+
+layout(push_constant) uniform Matrices {
     mat4 mvp;
-} ubo;
+} matrices;
 
 layout(location = 0) out vec2 uv_out;
 
 void main() {
-    gl_Position = ubo.mvp * vec4(position, 1);
+    gl_Position = matrices.mvp * vec4(position, 1);
 
     uv_out = uv;
 }
@@ -55,7 +59,7 @@ pub mod fs {
 
 layout(location = 0) in vec2 uv;
 
-layout(set = 0, binding = 1) uniform sampler2D tex; 
+layout(set = 0, binding = 0) uniform sampler2D tex; 
 
 layout(location = 0) out vec4 color;
 

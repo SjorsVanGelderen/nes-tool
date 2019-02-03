@@ -48,6 +48,8 @@ use std::sync::Arc;
 use vulkano::buffer::{
     BufferUsage,
     CpuAccessibleBuffer,
+    CpuBufferPool,
+    DeviceLocalBuffer,
 };
 
 use vulkano::command_buffer::{
@@ -159,9 +161,7 @@ fn main() {
 
     let (mut swapchain, images) = {
         let capabilities = surface.capabilities(physical).expect("Failed to get surface capabilities");
-
         let alpha = capabilities.supported_composite_alpha.iter().next().unwrap();
-
         let format = capabilities.supported_formats[0].0;
 
         let dimensions = if let Some(dimensions) = window.get_inner_size() {
@@ -259,11 +259,16 @@ fn main() {
 
     let mut mvp: Matrix4<f32> = model * view * projection;
 
-    let data_buffer = CpuAccessibleBuffer::from_data(
-        device.clone(),
-        BufferUsage::all(),
-        mvp
-    ).expect("Failed to create buffer");
+    // TODO: Figure out a better way to supply a mat4 as a push constant
+    // TODO: Try updating this value and syncing it with what's used by the shader
+    let push_constants = pattern_table::vs::ty::Matrices {
+        mvp: [
+            [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
+            [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
+            [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
+            [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
+        ],
+    };
 
     let (texture, tex_future) = {
         let pattern: pattern_table::PatternTable =
@@ -301,7 +306,6 @@ fn main() {
 
     let descriptor_set = Arc::new(
         PersistentDescriptorSet::start(pipeline.clone(), 0)
-        .add_buffer(data_buffer.clone()).unwrap()
         .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
         .build().unwrap()
     );
@@ -327,17 +331,17 @@ fn main() {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
 
-                // This isn't quite correct, or isn't updated in the shader uniform
+                // TODO: This isn't quite correct, or isn't updated in the shader uniform
 
-                // aspect = dimensions.0 as f32 / dimensions.1 as f32;
+                aspect = dimensions.0 as f32 / dimensions.1 as f32;
 
-                // projection = ortho(
-                //     -100.0 * aspect, 100.0 * aspect,
-                //     -100.0, 100.0,
-                //     0.01, 100.0
-                // );
+                projection = ortho(
+                    -100.0 * aspect, 100.0 * aspect,
+                    -100.0, 100.0,
+                    0.01, 100.0
+                );
 
-                // mvp = model * view * projection;
+                mvp = model * view * projection;
 
                 [dimensions.0, dimensions.1]
             }
@@ -386,7 +390,7 @@ fn main() {
             vertex_buffer.clone(),
             index_buffer.clone(),
             descriptor_set.clone(),
-            ()
+            push_constants
         ).unwrap()
         .end_render_pass().unwrap()
         .build().unwrap();
