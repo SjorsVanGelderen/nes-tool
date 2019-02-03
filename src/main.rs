@@ -132,8 +132,6 @@ use winit::{
 };
 
 fn main() {
-    // TODO: Separate this into functions
-
     let instance = {
         let extensions = vulkano_win::required_extensions();
         
@@ -267,22 +265,6 @@ fn main() {
         mvp
     ).expect("Failed to create buffer");
 
-    // let (texture, tex_future) = {
-    //     let image = image::load_from_memory_with_format(
-    //         include_bytes!("image.png"),
-    //         ImageFormat::PNG
-    //     ).unwrap().to_rgba();
-
-    //     let image_data = image.into_raw().clone();
-
-    //     ImmutableImage::from_iter(
-    //         image_data.iter().cloned(),
-    //         Dimensions::Dim2d { width: 256, height: 256 },
-    //         Format::R8G8B8A8Srgb,
-    //         queue.clone()
-    //     ).unwrap()
-    // };
-
     let (texture, tex_future) = {
         let pattern: pattern_table::PatternTable =
             match media::load_pattern_table(Path::new("mario.chr")) {
@@ -334,6 +316,7 @@ fn main() {
 
     let mut recreate_swapchain = false;
 
+    // TODO: Read up on this
     let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
     // let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
 
@@ -346,7 +329,7 @@ fn main() {
 
                 // This isn't quite correct, or isn't updated in the shader uniform
 
-                aspect = dimensions.0 as f32 / dimensions.1 as f32;
+                // aspect = dimensions.0 as f32 / dimensions.1 as f32;
 
                 // projection = ortho(
                 //     -100.0 * aspect, 100.0 * aspect,
