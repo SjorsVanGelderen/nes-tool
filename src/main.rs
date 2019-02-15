@@ -8,7 +8,7 @@ extern crate vulkano_win;
 extern crate winit;
 
 // use crate::attribute_table::AttributeTable;
-// use crate::app_state::AppState;
+use crate::app_state::AppState;
 // use crate::pattern_table::PatternTable;
 // use crate::nametable::Nametable;
 // use crate::samples::Samples;
@@ -42,9 +42,7 @@ use cgmath::{
 // };
 
 use std::error::Error;
-
 use std::path::Path;
-
 use std::sync::Arc;
 
 use vulkano::buffer::{
@@ -136,187 +134,149 @@ use winit::{
 };
 
 fn main() {
-    let instance = {
-        let extensions = vulkano_win::required_extensions();
-        
-        Instance::new(None, &extensions, None).expect("Failed to create instance")
-    };
+    let state: AppState = AppState::new();
 
-    let physical = get_physical_device(&instance);
+    // // enumerate_queues();
 
-    // enumerate_queues();
+    // let mut events_loop = EventsLoop::new();
 
-    let mut events_loop = EventsLoop::new();
+    // let surface = WindowBuilder::new()
+    //     .with_title("NES Tool")
+    //     .build_vk_surface(&events_loop, instance.clone())
+    //     .unwrap();
 
-    let surface = WindowBuilder::new()
-        .with_title("NES Tool")
-        .build_vk_surface(&events_loop, instance.clone())
-        .unwrap();
+    // let window = surface.window();
 
-    let window = surface.window();
+    // let queue_family = get_queue_family(physical);
 
-    let queue_family = get_queue_family(physical);
+    // let (device, mut queues) = get_device_and_queues(physical, queue_family);
 
-    let (device, mut queues) = get_device_and_queues(physical, queue_family);
+    // let queue = queues.next().unwrap();
 
-    let queue = queues.next().unwrap();
+    // let (mut swapchain, images) = {
+    //     let capabilities = surface.capabilities(physical).expect("Failed to get surface capabilities");
+    //     let alpha = capabilities.supported_composite_alpha.iter().next().unwrap();
+    //     let format = capabilities.supported_formats[0].0;
 
-    let (mut swapchain, images) = {
-        let capabilities = surface.capabilities(physical).expect("Failed to get surface capabilities");
-        let alpha = capabilities.supported_composite_alpha.iter().next().unwrap();
-        let format = capabilities.supported_formats[0].0;
-
-        let dimensions = if let Some(dimensions) = window.get_inner_size() {
-            let dimensions: (u32, u32) = dimensions
-                .to_physical(window.get_hidpi_factor())
-                .into();
+    //     let dimensions = if let Some(dimensions) = window.get_inner_size() {
+    //         let dimensions: (u32, u32) = dimensions
+    //             .to_physical(window.get_hidpi_factor())
+    //             .into();
             
-            [dimensions.0, dimensions.1]
-        }
-        else {
-            return;
-        };
+    //         [dimensions.0, dimensions.1]
+    //     }
+    //     else {
+    //         return;
+    //     };
 
-        Swapchain::new(
-            device.clone(),
-            surface.clone(),
-            capabilities.min_image_count,
-            format,
-            dimensions,
-            1,
-            capabilities.supported_usage_flags,
-            &queue,
-            SurfaceTransform::Identity,
-            alpha,
-            PresentMode::Fifo,
-            true,
-            None
-        ).expect("Failed to create swapchain")
-    };
+    //     Swapchain::new(
+    //         device.clone(),
+    //         surface.clone(),
+    //         capabilities.min_image_count,
+    //         format,
+    //         dimensions,
+    //         1,
+    //         capabilities.supported_usage_flags,
+    //         &queue,
+    //         SurfaceTransform::Identity,
+    //         alpha,
+    //         PresentMode::Fifo,
+    //         true,
+    //         None
+    //     ).expect("Failed to create swapchain")
+    // };
 
-    let app_state: app_state::AppState = app_state::AppState::zero();
+    // let pattern_table_surface: surface::Surface = pattern_table::surface_zero();
 
-    let pattern_table_surface: surface::Surface = pattern_table::surface_zero();
+    // // TODO: Get rid of CpuAccessibleBuffer as it will probably be deprecated
+    // // Perhaps check https://docs.rs/vulkano/0.11.1/vulkano/pipeline/vertex/index.html ?
+    // let vertex_buffer = CpuAccessibleBuffer::from_iter(
+    //     device.clone(), 
+    //     BufferUsage::all(),
+    //     pattern_table_surface.vertices.iter().cloned()
+    // ).unwrap();
 
-    // TODO: Get rid of CpuAccessibleBuffer as it will probably be deprecated
-    // Perhaps check https://docs.rs/vulkano/0.11.1/vulkano/pipeline/vertex/index.html ?
-    let vertex_buffer = CpuAccessibleBuffer::from_iter(
-        device.clone(), 
-        BufferUsage::all(),
-        pattern_table_surface.vertices.iter().cloned()
-    ).unwrap();
+    // let index_buffer = CpuAccessibleBuffer::from_iter(
+    //     device.clone(),
+    //     BufferUsage::all(),
+    //     pattern_table_surface.indices.iter().cloned()
+    // ).unwrap();
 
-    let index_buffer = CpuAccessibleBuffer::from_iter(
-        device.clone(),
-        BufferUsage::all(),
-        pattern_table_surface.indices.iter().cloned()
-    ).unwrap();
+    // let pattern_table_vs = pattern_table::vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
+    // let pattern_table_fs = pattern_table::fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
 
-    let pattern_table_vs = pattern_table::vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
-    let pattern_table_fs = pattern_table::fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
+    // // TODO: The palette table needs its own shaders
+    // let palette_surface: surface::Surface = palette::surface_zero();
 
-    // TODO: The palette table needs its own shaders
-    let palette_surface: surface::Surface = palette::surface_zero();
+    // let render_pass = Arc::new(
+    //     vulkano::single_pass_renderpass!(
+    //         device.clone(),
+    //         attachments: {
+    //             color: {
+    //                 load: Clear,
+    //                 store: Store,
+    //                 format: swapchain.format(),
+    //                 samples: 1,
+    //             }
+    //         },
+    //         pass: {
+    //             color: [color],
+    //             depth_stencil: {}
+    //         }
+    //     ).unwrap()
+    // );
 
-    let render_pass = Arc::new(
-        vulkano::single_pass_renderpass!(
-            device.clone(),
-            attachments: {
-                color: {
-                    load: Clear,
-                    store: Store,
-                    format: swapchain.format(),
-                    samples: 1,
-                }
-            },
-            pass: {
-                color: [color],
-                depth_stencil: {}
-            }
-        ).unwrap()
-    );
+    // // TODO: Need to add information about the palette table here
+    // let pipeline = Arc::new(
+    //     GraphicsPipeline::start()
+    //         .vertex_input_single_buffer()
+    //         .vertex_shader(pattern_table_vs.main_entry_point(), ())
+    //         .triangle_list()
+    //         .viewports_dynamic_scissors_irrelevant(1)
+    //         .fragment_shader(pattern_table_fs.main_entry_point(), ())
+    //         .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+    //         .build(device.clone())
+    //         .unwrap()
+    // );
 
-    // TODO: Need to add information about the palette table here
-    let pipeline = Arc::new(
-        GraphicsPipeline::start()
-            .vertex_input_single_buffer()
-            .vertex_shader(pattern_table_vs.main_entry_point(), ())
-            .triangle_list()
-            .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(pattern_table_fs.main_entry_point(), ())
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-            .build(device.clone())
-            .unwrap()
-    );
+    // let mut aspect: f32 = 4.0 / 3.0;
 
-    let mut aspect: f32 = 4.0 / 3.0;
-
-    let mut projection: Matrix4<f32> = ortho(
-        -100.0 * aspect, 100.0 * aspect,
-        -100.0, 100.0,
-        0.01, 100.0
-    );
+    // let mut projection: Matrix4<f32> = ortho(
+    //     -100.0 * aspect, 100.0 * aspect,
+    //     -100.0, 100.0,
+    //     0.01, 100.0
+    // );
     
-    let mut view: Matrix4<f32> = Matrix4::look_at(
-        Point3::new(0.0, 0.0, -1.0),
-        Point3::new(0.0, 0.0, 0.0),
-        Vector3::new(0.0, -1.0, 0.0)
-    );
+    // let mut view: Matrix4<f32> = Matrix4::look_at(
+    //     Point3::new(0.0, 0.0, -1.0),
+    //     Point3::new(0.0, 0.0, 0.0),
+    //     Vector3::new(0.0, -1.0, 0.0)
+    // );
 
-    let mut model: Matrix4<f32> = Matrix4::identity();
+    // let mut model: Matrix4<f32> = Matrix4::identity();
 
-    let mut mvp: Matrix4<f32> = model * view * projection;
+    // let mut mvp: Matrix4<f32> = model * view * projection;
 
-    // TODO: Move this logic to the pattern table module
-    let (texture, tex_future) = {
-        let pattern: pattern_table::PatternTable =
-            match media::load_pattern_table(Path::new("mario.chr")) {
-                Ok(p) => p,
-                Err(e) => panic!(e),
-            };
-
-        let mut image_data: [u8; 32768] = [0u8; 32768];
-        
-        for (i, x) in pattern.pixels.iter().enumerate() {
-            let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
-
-            image_data[i] = pixel;
-        }
-
-        ImmutableImage::from_iter(
-            image_data.iter().cloned(),
-            Dimensions::Dim2d { width: 256, height: 128 },
-            Format::R8Unorm,
-            queue.clone()
-        ).unwrap()
-    };
-
-    let sampler = Sampler::new(
-        device.clone(),
-        Filter::Nearest,
-        Filter::Nearest,
-        MipmapMode::Nearest,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
-        0.0, 1.0, 0.0, 0.0
-    ).unwrap();
-
-    let descriptor_set = Arc::new(
-        PersistentDescriptorSet::start(pipeline.clone(), 0)
-        .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
-        .build().unwrap()
-    );
-
+    // // TODO: Move this logic to the pattern table module
     // let (texture, tex_future) = {
-    //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
-    //         |x| vec![x[0], x[1], x[2], 255u8]
-    //     ).collect();
+    //     let pattern: pattern_table::PatternTable =
+    //         match media::load_pattern_table(Path::new("mario.chr")) {
+    //             Ok(p) => p,
+    //             Err(e) => panic!(e),
+    //         };
+
+    //     let mut image_data: [u8; 32768] = [0u8; 32768];
+        
+    //     for (i, x) in pattern.pixels.iter().enumerate() {
+    //         let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
+
+    //         image_data[i] = pixel;
+    //     }
 
     //     ImmutableImage::from_iter(
     //         image_data.iter().cloned(),
-    //         Dimensions::Dim2d { width: 16, height: 4 },
-    //         Format::R8G8B8A8Unorm,
+    //         Dimensions::Dim2d { width: 256, height: 128 },
+    //         Format::R8Unorm,
     //         queue.clone()
     //     ).unwrap()
     // };
@@ -332,208 +292,208 @@ fn main() {
     //     0.0, 1.0, 0.0, 0.0
     // ).unwrap();
 
-    let mut dynamic_state = DynamicState {
-        line_width: None, 
-        viewports: None, 
-        scissors: None
-    };
+    // let descriptor_set = Arc::new(
+    //     PersistentDescriptorSet::start(pipeline.clone(), 0)
+    //     .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
+    //     .build().unwrap()
+    // );
 
-    let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
+    // // let (texture, tex_future) = {
+    // //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
+    // //         |x| vec![x[0], x[1], x[2], 255u8]
+    // //     ).collect();
 
-    let mut recreate_swapchain = false;
+    // //     ImmutableImage::from_iter(
+    // //         image_data.iter().cloned(),
+    // //         Dimensions::Dim2d { width: 16, height: 4 },
+    // //         Format::R8G8B8A8Unorm,
+    // //         queue.clone()
+    // //     ).unwrap()
+    // // };
 
-    // TODO: Read up on this
-    let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
-    // let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
+    // // let sampler = Sampler::new(
+    // //     device.clone(),
+    // //     Filter::Nearest,
+    // //     Filter::Nearest,
+    // //     MipmapMode::Nearest,
+    // //     SamplerAddressMode::ClampToEdge,
+    // //     SamplerAddressMode::ClampToEdge,
+    // //     SamplerAddressMode::ClampToEdge,
+    // //     0.0, 1.0, 0.0, 0.0
+    // // ).unwrap();
 
-    loop {
-        previous_frame_end.cleanup_finished();
+    // let mut dynamic_state = DynamicState {
+    //     line_width: None, 
+    //     viewports: None, 
+    //     scissors: None
+    // };
 
-        if recreate_swapchain {
-            let dimensions = if let Some(dimensions) = window.get_inner_size() {
-                let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
+    // let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
 
-                aspect = dimensions.0 as f32 / dimensions.1 as f32;
+    // let mut recreate_swapchain = false;
 
-                projection = ortho(
-                    -100.0 * aspect, 100.0 * aspect,
-                    -100.0, 100.0,
-                    0.01, 100.0
-                );
+    // // TODO: Read up on this
+    // let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
+    // // let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
 
-                mvp = model * view * projection;
+    // loop {
+    //     previous_frame_end.cleanup_finished();
 
-                [dimensions.0, dimensions.1]
-            }
-            else {
-                return;
-            };
+    //     if recreate_swapchain {
+    //         let dimensions = if let Some(dimensions) = window.get_inner_size() {
+    //             let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
 
-            let (new_swapchain, new_images) =
-                match swapchain.recreate_with_dimension(dimensions) {
-                    Ok(r) => r,
-                    Err(SwapchainCreationError::UnsupportedDimensions) => continue,
-                    Err(err) => panic!("{:?}", err)
-                };
+    //             aspect = dimensions.0 as f32 / dimensions.1 as f32;
 
-            swapchain = new_swapchain;
+    //             projection = ortho(
+    //                 -100.0 * aspect, 100.0 * aspect,
+    //                 -100.0, 100.0,
+    //                 0.01, 100.0
+    //             );
 
-            framebuffers = window_size_dependent_setup(&new_images, render_pass.clone(), &mut dynamic_state);
+    //             mvp = model * view * projection;
 
-            recreate_swapchain = false;
-        }
+    //             [dimensions.0, dimensions.1]
+    //         }
+    //         else {
+    //             return;
+    //         };
 
-        // TODO: Figure out a better way to supply a mat4 as a push constant
-        let push_constants = pattern_table::vs::ty::Matrices {
-            mvp: [
-                [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
-                [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
-                [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
-                [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
-            ],
-        };
+    //         let (new_swapchain, new_images) =
+    //             match swapchain.recreate_with_dimension(dimensions) {
+    //                 Ok(r) => r,
+    //                 Err(SwapchainCreationError::UnsupportedDimensions) => continue,
+    //                 Err(err) => panic!("{:?}", err)
+    //             };
 
-        let (image_number, acquire_future) =
-            match acquire_next_image(swapchain.clone(), None) {
-                Ok(r) => r,
-                Err(AcquireError::OutOfDate) => {
-                    recreate_swapchain = true;
-                    continue;
-                },
-                Err(err) => panic!("{:?}", err)
-            };
+    //         swapchain = new_swapchain;
 
-        let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
+    //         framebuffers = window_size_dependent_setup(&new_images, render_pass.clone(), &mut dynamic_state);
 
-        let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
-            device.clone(),
-            queue.family()
-        ).unwrap()
-        .begin_render_pass(
-            framebuffers[image_number].clone(),
-            false,
-            clear_values
-        ).unwrap()
-        .draw_indexed(
-            pipeline.clone(),
-            &dynamic_state,
-            vertex_buffer.clone(),
-            index_buffer.clone(),
-            descriptor_set.clone(),
-            push_constants
-        ).unwrap()
-        .end_render_pass().unwrap()
-        .build().unwrap();
+    //         recreate_swapchain = false;
+    //     }
 
-        let future = previous_frame_end.join(acquire_future)
-            .then_execute(queue.clone(), command_buffer).unwrap()
-            .then_swapchain_present(queue.clone(), swapchain.clone(), image_number)
-            .then_signal_fence_and_flush();
+    //     // TODO: Figure out a better way to supply a mat4 as a push constant
+    //     let push_constants = pattern_table::vs::ty::Matrices {
+    //         mvp: [
+    //             [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
+    //             [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
+    //             [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
+    //             [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
+    //         ],
+    //     };
 
-        match future {
-            Ok(future) => {
-                previous_frame_end = Box::new(future) as Box<_>;
-            },
-            Err(FlushError::OutOfDate) => {
-                recreate_swapchain = true;
-                previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<_>;
-            },
-            Err(e) => {
-                println!("{:?}", e);
-                previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<_>;
-            }
-        }
+    //     let (image_number, acquire_future) =
+    //         match acquire_next_image(swapchain.clone(), None) {
+    //             Ok(r) => r,
+    //             Err(AcquireError::OutOfDate) => {
+    //                 recreate_swapchain = true;
+    //                 continue;
+    //             },
+    //             Err(err) => panic!("{:?}", err)
+    //         };
 
-        let mut done = false;
+    //     let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
 
-        events_loop.poll_events(|event| {
-            match event {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
-                    ..
-                } => done = true,
-                Event::WindowEvent {
-                    event: WindowEvent::Resized(_),
-                    ..
-                } => recreate_swapchain = true,
-                Event::WindowEvent {
-                    event: WindowEvent::CursorMoved { position, .. },
-                    ..
-                } => (), //println!("Cursor position: {0}, {1}", position.x, position.y),
-                Event::WindowEvent {
-                    event: WindowEvent::KeyboardInput { 
-                        input: KeyboardInput {
-                            virtual_keycode: Some(code),
-                            ..
-                        },
-                        ..
-                    },
-                    ..
-                } => {
-                    if code == VirtualKeyCode::Escape {
-                        done = true;
-                    }
-                },
-                _ => ()
-            }
-        });
+    //     let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
+    //         device.clone(),
+    //         queue.family()
+    //     ).unwrap()
+    //     .begin_render_pass(
+    //         framebuffers[image_number].clone(),
+    //         false,
+    //         clear_values
+    //     ).unwrap()
+    //     .draw_indexed(
+    //         pipeline.clone(),
+    //         &dynamic_state,
+    //         vertex_buffer.clone(),
+    //         index_buffer.clone(),
+    //         descriptor_set.clone(),
+    //         push_constants
+    //     ).unwrap()
+    //     .end_render_pass().unwrap()
+    //     .build().unwrap();
 
-        if done {
-            return;
-        }
-    }
+    //     let future = previous_frame_end.join(acquire_future)
+    //         .then_execute(queue.clone(), command_buffer).unwrap()
+    //         .then_swapchain_present(queue.clone(), swapchain.clone(), image_number)
+    //         .then_signal_fence_and_flush();
+
+    //     match future {
+    //         Ok(future) => {
+    //             previous_frame_end = Box::new(future) as Box<_>;
+    //         },
+    //         Err(FlushError::OutOfDate) => {
+    //             recreate_swapchain = true;
+    //             previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<_>;
+    //         },
+    //         Err(e) => {
+    //             println!("{:?}", e);
+    //             previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<_>;
+    //         }
+    //     }
+
+    //     let mut done = false;
+
+    //     events_loop.poll_events(|event| {
+    //         match event {
+    //             Event::WindowEvent {
+    //                 event: WindowEvent::CloseRequested,
+    //                 ..
+    //             } => done = true,
+    //             Event::WindowEvent {
+    //                 event: WindowEvent::Resized(_),
+    //                 ..
+    //             } => recreate_swapchain = true,
+    //             Event::WindowEvent {
+    //                 event: WindowEvent::CursorMoved { position, .. },
+    //                 ..
+    //             } => (), //println!("Cursor position: {0}, {1}", position.x, position.y),
+    //             Event::WindowEvent {
+    //                 event: WindowEvent::KeyboardInput { 
+    //                     input: KeyboardInput {
+    //                         virtual_keycode: Some(code),
+    //                         ..
+    //                     },
+    //                     ..
+    //                 },
+    //                 ..
+    //             } => {
+    //                 if code == VirtualKeyCode::Escape {
+    //                     done = true;
+    //                 }
+    //             },
+    //             _ => ()
+    //         }
+    //     });
+
+    //     if done {
+    //         return;
+    //     }
+    // }
 }
 
-fn get_physical_device(i: &Arc<Instance>) -> PhysicalDevice {
-    PhysicalDevice::enumerate(i).next().expect("No device found")
-}
+// fn window_size_dependent_setup(
+//     images: &[Arc<SwapchainImage<Window>>],
+//     render_pass: Arc<RenderPassAbstract + Send + Sync>,
+//     dynamic_state: &mut DynamicState
+// ) -> Vec<Arc<FramebufferAbstract + Send + Sync>> {
+//     let dimensions = images[0].dimensions();
 
-// fn enumerate_queues(p: PhysicalDevice) {
-//     for family in p.queue_families() {
-//         println!("Found a queue family with {:?} queue(s)", family.queues_count());
-//     }
+//     let viewport = Viewport {
+//         origin: [0.0, 0.0],
+//         dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+//         depth_range: 0.0 .. 1.0,
+//     };
+
+//     dynamic_state.viewports = Some(vec!(viewport));
+
+//     images.iter().map(|image| {
+//         Arc::new(
+//             Framebuffer::start(render_pass.clone())
+//                 .add(image.clone()).unwrap()
+//                 .build().unwrap()
+//         ) as Arc<FramebufferAbstract + Send + Sync>
+//     }).collect::<Vec<_>>()
 // }
-
-fn get_queue_family(p: PhysicalDevice) -> QueueFamily {
-    p.queue_families()
-        .find(|&q| q.supports_graphics())
-        .expect("No graphical queues found")
-}
-
-fn get_device_and_queues(p: PhysicalDevice, q: QueueFamily) -> (Arc<Device>, QueuesIter) {
-    let extensions = vulkano::device::DeviceExtensions {
-        khr_swapchain: true,
-        .. vulkano::device::DeviceExtensions::none()
-    };
-
-    Device::new(
-        p,
-        p.supported_features(),
-        &extensions,
-        [(q, 0.5)].iter().cloned()
-    ).expect("Failed to create device")
-}
-
-fn window_size_dependent_setup(
-    images: &[Arc<SwapchainImage<Window>>],
-    render_pass: Arc<RenderPassAbstract + Send + Sync>,
-    dynamic_state: &mut DynamicState
-) -> Vec<Arc<FramebufferAbstract + Send + Sync>> {
-    let dimensions = images[0].dimensions();
-
-    let viewport = Viewport {
-        origin: [0.0, 0.0],
-        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-        depth_range: 0.0 .. 1.0,
-    };
-
-    dynamic_state.viewports = Some(vec!(viewport));
-
-    images.iter().map(|image| {
-        Arc::new(
-            Framebuffer::start(render_pass.clone())
-                .add(image.clone()).unwrap()
-                .build().unwrap()
-        ) as Arc<FramebufferAbstract + Send + Sync>
-    }).collect::<Vec<_>>()
-}
