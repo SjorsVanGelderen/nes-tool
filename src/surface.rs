@@ -1,8 +1,6 @@
 // Copyright 2019, Sjors van Gelderen
 
-use cgmath::{
-    Vector2,
-};
+use cgmath::Vector2;
 
 use crate::vertex::Vertex;
 

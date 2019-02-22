@@ -124,8 +124,10 @@ use vulkano::sync::{
 use vulkano_win::VkSurfaceBuild;
 
 use winit::{
+    ElementState,
     Event,
     EventsLoop,
+    MouseButton,
     Window,
     WindowBuilder,
     WindowEvent,
@@ -134,8 +136,6 @@ use winit::{
 };
 
 fn main() {
-    let state: AppState = AppState::new();
-
     let instance = {
         let extensions = vulkano_win::required_extensions();
         
@@ -166,7 +166,7 @@ fn main() {
     let mut events_loop = EventsLoop::new();
 
     let surface = WindowBuilder::new()
-        .with_title("NES Tool")
+        .with_title("NES tool")
         .build_vk_surface(&events_loop, instance.clone())
         .unwrap();
 
@@ -260,24 +260,6 @@ fn main() {
             .unwrap()
     );
 
-    let mut aspect: f32 = 4.0 / 3.0;
-
-    let mut projection: Matrix4<f32> = ortho(
-        -100.0 * aspect, 100.0 * aspect,
-        -100.0, 100.0,
-        0.01, 100.0
-    );
-    
-    let mut view: Matrix4<f32> = Matrix4::look_at(
-        Point3::new(0.0, 0.0, -1.0),
-        Point3::new(0.0, 0.0, 0.0),
-        Vector3::new(0.0, -1.0, 0.0)
-    );
-
-    let mut model: Matrix4<f32> = Matrix4::identity();
-
-    let mut mvp: Matrix4<f32> = model * view * projection;
-
     // TODO: Move this logic to the pattern table module
     let (texture, tex_future) = {
         let pattern: pattern_table::PatternTable =
@@ -357,6 +339,8 @@ fn main() {
     let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
     // let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
 
+    let mut app_state: AppState = AppState::new(4.0 / 3.0);
+
     loop {
         previous_frame_end.cleanup_finished();
 
@@ -364,15 +348,9 @@ fn main() {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
 
-                aspect = dimensions.0 as f32 / dimensions.1 as f32;
-
-                projection = ortho(
-                    -100.0 * aspect, 100.0 * aspect,
-                    -100.0, 100.0,
-                    0.01, 100.0
-                );
-
-                mvp = model * view * projection;
+                app_state.aspect = dimensions.0 as f32 / dimensions.1 as f32;
+                app_state.view = app_state.view.update_projection(app_state.aspect);
+                app_state.dimensions = Vector2::new(dimensions.0, dimensions.1);
 
                 [dimensions.0, dimensions.1]
             }
@@ -393,6 +371,8 @@ fn main() {
 
             recreate_swapchain = false;
         }
+
+        let mvp = app_state.view.mvp();
 
         // TODO: Figure out a better way to supply a mat4 as a push constant
         let push_constants = pattern_table::vs::ty::Matrices {
@@ -470,11 +450,46 @@ fn main() {
                 Event::WindowEvent {
                     event: WindowEvent::CursorMoved { position, .. },
                     ..
-                } => (), //println!("Cursor position: {0}, {1}", position.x, position.y),
+                } => {
+                    app_state.mouse.position = Vector2::new(position.x as f32, position.y as f32);
+
+                    if app_state.dragging {
+                        app_state.view = app_state.view.update_model(
+                            Matrix4::from_translation(
+                                Vector3::new(
+                                    (app_state.mouse.position.x - app_state.dimensions.x as f32 / 2.0) / 1000.0,
+                                    (app_state.mouse.position.y - app_state.dimensions.y as f32 / 2.0) / 1000.0, 
+                                    0.0
+                                )
+                            )
+                        );
+
+                        app_state.view = app_state.view.update_projection(app_state.aspect);
+                    }
+                },
+                Event::WindowEvent {
+                    event: WindowEvent::MouseInput { state, button, .. },
+                    ..
+                } => {
+                    match button {
+                        MouseButton::Left => {
+                            // app_state.mouse.left_down = state == ElementState::Pressed;
+
+                            if state == ElementState::Pressed {
+                                app_state.drag_start = app_state.mouse.position;
+                            }
+                        },
+                        MouseButton::Right => {
+                            // app_state.mouse.left_down = state == ElementState::Pressed;
+                        },
+                        _ => ()
+                    }
+                },
                 Event::WindowEvent {
                     event: WindowEvent::KeyboardInput { 
                         input: KeyboardInput {
                             virtual_keycode: Some(code),
+                            state,
                             ..
                         },
                         ..
@@ -483,6 +498,9 @@ fn main() {
                 } => {
                     if code == VirtualKeyCode::Escape {
                         done = true;
+                    }
+                    else if code == VirtualKeyCode::Space {
+                        app_state.dragging = state == ElementState::Pressed;
                     }
                 },
                 _ => ()
