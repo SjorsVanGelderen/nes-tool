@@ -1,9 +1,9 @@
 // Copyright 2019, Sjors van Gelderen
 
-use crate::attribute_table::AttributeTable;
-use crate::pattern_table::PatternTable;
-use crate::nametable::Nametable;
-use crate::samples::Samples;
+// use crate::attribute_table::AttributeTable;
+// use crate::pattern_table::PatternTable;
+// use crate::nametable::Nametable;
+// use crate::samples::Samples;
 
 use std::fs::File;
 
@@ -14,15 +14,13 @@ use std::io::{
 
 use std::path::Path;
 
-pub fn load_pattern_table(path: &Path) -> Result<PatternTable> {
+pub fn load_pattern_table_bytes_and_pixels(path: &Path) -> Result<([u8; 8192], [u8; 32768])> {
     let mut file = File::open(&path)?;
     let mut buffer: [u8; 8192] = [0u8; 8192]; // 8KB of graphics
 
     file.read(&mut buffer)?;
 
     let mut pixels: [u8; 32768] = [0u8; 32768]; // 512 tiles of 64 pixels
-
-    // TODO: Consider how to read the data into pixels so that the pages are clearly separated
 
     for page_index in 0..2 {
         let page_start = page_index * 4096;
@@ -40,9 +38,6 @@ pub fn load_pattern_table(path: &Path) -> Result<PatternTable> {
                     let lower = tile[y] & test;
                     let higher = tile[y + 8] & test;
 
-                    // Different layout:
-                    // pixels[tile_index * 64 + y * 8 + x]
-
                     pixels[page_offset + tile_y_offset + tile_x_offset + y * 256 + x] =
                         match (lower > 0u8, higher > 0u8) {
                             (true, true) => 3u8,
@@ -55,57 +50,52 @@ pub fn load_pattern_table(path: &Path) -> Result<PatternTable> {
         }
     }
 
-    let pattern: PatternTable = PatternTable {
-        bytes: buffer,
-        pixels: pixels,
-    };
-
-    Ok(pattern)
+    Ok((buffer, pixels))
 }
 
-pub fn load_samples(path: &Path) -> Result<Samples> {
-    let mut file = File::open(&path)?;
-    let mut samples: [u8; 26] = [0u8; 26];
+// pub fn load_samples(path: &Path) -> Result<Samples> {
+//     let mut file = File::open(&path)?;
+//     let mut samples: [u8; 26] = [0u8; 26];
 
-    file.read(&mut samples)?;
+//     file.read(&mut samples)?;
 
-    Ok(Samples::zero())
-}
+//     Ok(Samples::zero())
+// }
 
-pub fn load_nametable(path: &Path) -> Result<Nametable> {
-    let mut file = File::open(&path)?;
-    let mut nametable: [u8; 1024] = [0u8; 1024];
+// pub fn load_nametable(path: &Path) -> Result<Nametable> {
+//     let mut file = File::open(&path)?;
+//     let mut nametable: [u8; 1024] = [0u8; 1024];
 
-    file.read(&mut nametable)?;
+//     file.read(&mut nametable)?;
 
-    Ok(Nametable::zero())
-}
+//     Ok(Nametable::zero())
+// }
 
-pub fn load_attribute_table(path: &Path) -> Result<AttributeTable> {
-    let mut file = File::open(&path)?;
-    let mut attribute_table: [u8; 64] = [0u8; 64];
+// pub fn load_attribute_table(path: &Path) -> Result<AttributeTable> {
+//     let mut file = File::open(&path)?;
+//     let mut attribute_table: [u8; 64] = [0u8; 64];
 
-    file.read(&mut attribute_table)?;
+//     file.read(&mut attribute_table)?;
     
-    Ok(AttributeTable::zero())
-}
+//     Ok(AttributeTable::zero())
+// }
 
-pub fn save_character(path: &str) -> Result<()> {
-    // let mut file = File::create(path)?;
+// pub fn save_character(path: &str) -> Result<()> {
+//     // let mut file = File::create(path)?;
 
-    // file.write_all(b"Hello, World!")?;
+//     // file.write_all(b"Hello, World!")?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-pub fn save_samples() -> Result<()> {
-    Ok(())
-}
+// pub fn save_samples() -> Result<()> {
+//     Ok(())
+// }
 
-pub fn save_nametable() -> Result<()> {
-    Ok(())
-}
+// pub fn save_nametable() -> Result<()> {
+//     Ok(())
+// }
 
-pub fn save_attributes() -> Result<()> {
-    Ok(())
-}
+// pub fn save_attributes() -> Result<()> {
+//     Ok(())
+// }

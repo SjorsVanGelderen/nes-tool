@@ -9,7 +9,7 @@ extern crate winit;
 
 // use crate::attribute_table::AttributeTable;
 use crate::app_state::AppState;
-// use crate::pattern_table::PatternTable;
+use crate::pattern_table::PatternTable;
 // use crate::nametable::Nametable;
 // use crate::samples::Samples;
 // use crate::surface::Surface;
@@ -24,80 +24,41 @@ mod palette;
 mod pattern_table;
 mod samples;
 mod surface;
+mod system;
 mod tool;
 mod vertex;
 
 use cgmath::{
     Matrix4,
-    Point3,
-    SquareMatrix,
     Vector2,
     Vector3,
-    ortho,
 };
 
-// use image::{
-//     ImageBuffer,
-//     Rgba,
-// };
-
-use std::error::Error;
 use std::path::Path;
 use std::sync::Arc;
 
-use vulkano::buffer::{
-    BufferUsage,
-    CpuAccessibleBuffer,
-    CpuBufferPool,
-    DeviceLocalBuffer,
-};
-
 use vulkano::command_buffer::{
     AutoCommandBufferBuilder,
-    CommandBuffer,
     DynamicState,
 };
 
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 
-use vulkano::device::{
-    Device,
-    DeviceExtensions,
-    Features,
-    Queue,
-    QueuesIter,
-};
-
 use vulkano::format::{
     Format,
-    ClearValue,
 };
 
 use vulkano::framebuffer::{
-    Framebuffer,
-    FramebufferAbstract,
-    RenderPassAbstract,
     Subpass,
 };
 
 use vulkano::image::{
     Dimensions,
     ImmutableImage,
-    StorageImage,
-    SwapchainImage,
-};
-
-use vulkano::instance::{
-    Instance,
-    InstanceExtensions,
-    PhysicalDevice,
-    QueueFamily,
 };
 
 use vulkano::pipeline::{
-    ComputePipeline,
     GraphicsPipeline,
-    viewport::Viewport,
 };
 
 use vulkano::sampler::{
@@ -109,9 +70,6 @@ use vulkano::sampler::{
 
 use vulkano::swapchain::{
     AcquireError,
-    PresentMode,
-    SurfaceTransform,
-    Swapchain,
     SwapchainCreationError,
     acquire_next_image,
 };
@@ -121,113 +79,36 @@ use vulkano::sync::{
     GpuFuture,
 };
 
-use vulkano_win::VkSurfaceBuild;
-
 use winit::{
     ElementState,
     Event,
     EventsLoop,
     MouseButton,
-    Window,
-    WindowBuilder,
     WindowEvent,
     KeyboardInput,
     VirtualKeyCode,
 };
 
 fn main() {
-    let instance = {
-        let extensions = vulkano_win::required_extensions();
-        
-        Instance::new(None, &extensions, None).expect("Failed to create instance")
-    };
-
-    let physical = PhysicalDevice::enumerate(&instance).next()
-        .expect("No device found");
-
-    let queue_family = physical.queue_families()
-        .find(|&q| q.supports_graphics())
-        .expect("No graphical queues found");
-
-    let extensions = vulkano::device::DeviceExtensions {
-        khr_swapchain: true,
-        .. vulkano::device::DeviceExtensions::none()
-    };
-
-    let (device, mut queues) = Device::new(
-        physical,
-        physical.supported_features(),
-        &extensions,
-        [(queue_family, 0.5)].iter().cloned()
-    ).expect("Failed to create device");
-
-    // // enumerate_queues();
-
+    let instance = system::get_instance();
+    let physical = system::get_physical(&instance);
+    let queue_family = system::get_queue_family(physical);
+    let extensions = system::get_device_extensions();
+    let (device, mut queues) = system::get_device_and_queues(physical, extensions, queue_family);
+    let queue = queues.next().unwrap();
     let mut events_loop = EventsLoop::new();
-
-    let surface = WindowBuilder::new()
-        .with_title("NES tool")
-        .build_vk_surface(&events_loop, instance.clone())
-        .unwrap();
-
+    let surface = system::get_surface(&events_loop, instance.clone());
     let window = surface.window();
 
-    let queue = queues.next().unwrap();
-
-    let (mut swapchain, images) = {
-        let capabilities = surface.capabilities(physical).expect("Failed to get surface capabilities");
-        let alpha = capabilities.supported_composite_alpha.iter().next().unwrap();
-        let format = capabilities.supported_formats[0].0;
-
-        let dimensions = if let Some(dimensions) = window.get_inner_size() {
-            let dimensions: (u32, u32) = dimensions
-                .to_physical(window.get_hidpi_factor())
-                .into();
-            
-            [dimensions.0, dimensions.1]
-        }
-        else {
-            return;
-        };
-
-        Swapchain::new(
-            device.clone(),
-            surface.clone(),
-            capabilities.min_image_count,
-            format,
-            dimensions,
-            1,
-            capabilities.supported_usage_flags,
-            &queue,
-            SurfaceTransform::Identity,
-            alpha,
-            PresentMode::Fifo,
-            true,
-            None
-        ).expect("Failed to create swapchain")
-    };
-
-    let pattern_table_surface: surface::Surface = pattern_table::surface_zero();
-
-    // TODO: Get rid of CpuAccessibleBuffer as it will probably be deprecated
-    // Perhaps check https://docs.rs/vulkano/0.11.1/vulkano/pipeline/vertex/index.html ?
-    let vertex_buffer = CpuAccessibleBuffer::from_iter(
+    let (mut swapchain, images) = system::get_swapchain_and_images(
+        surface.clone(), 
+        physical, 
+        window, 
         device.clone(), 
-        BufferUsage::all(),
-        pattern_table_surface.vertices.iter().cloned()
-    ).unwrap();
+        queue.clone()
+    );
 
-    let index_buffer = CpuAccessibleBuffer::from_iter(
-        device.clone(),
-        BufferUsage::all(),
-        pattern_table_surface.indices.iter().cloned()
-    ).unwrap();
-
-    let pattern_table_vs = pattern_table::vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
-    let pattern_table_fs = pattern_table::fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
-
-    // TODO: The palette table needs its own shaders
-    let palette_surface: surface::Surface = palette::surface_zero();
+    let pattern_table = PatternTable::zero(device.clone()).load_from_file(Path::new("mario.chr"));
 
     let render_pass = Arc::new(
         vulkano::single_pass_renderpass!(
@@ -247,30 +128,23 @@ fn main() {
         ).unwrap()
     );
 
-    // TODO: Need to add information about the palette table here
     let pipeline = Arc::new(
         GraphicsPipeline::start()
             .vertex_input_single_buffer()
-            .vertex_shader(pattern_table_vs.main_entry_point(), ())
+            .vertex_shader(pattern_table.vertex_shader.main_entry_point(), ())
             .triangle_list()
             .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(pattern_table_fs.main_entry_point(), ())
+            .fragment_shader(pattern_table.fragment_shader.main_entry_point(), ())
             .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
             .build(device.clone())
             .unwrap()
     );
 
-    // TODO: Move this logic to the pattern table module
+    // // TODO: Move this logic to the pattern table module
     let (texture, tex_future) = {
-        let pattern: pattern_table::PatternTable =
-            match media::load_pattern_table(Path::new("mario.chr")) {
-                Ok(p) => p,
-                Err(e) => panic!(e),
-            };
-
         let mut image_data: [u8; 32768] = [0u8; 32768];
         
-        for (i, x) in pattern.pixels.iter().enumerate() {
+        for (i, x) in pattern_table.pixels.iter().enumerate() {
             let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
 
             image_data[i] = pixel;
@@ -301,29 +175,29 @@ fn main() {
         .build().unwrap()
     );
 
-    // let (texture, tex_future) = {
-    //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
-    //         |x| vec![x[0], x[1], x[2], 255u8]
-    //     ).collect();
+    // // let (texture, tex_future) = {
+    // //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
+    // //         |x| vec![x[0], x[1], x[2], 255u8]
+    // //     ).collect();
 
-    //     ImmutableImage::from_iter(
-    //         image_data.iter().cloned(),
-    //         Dimensions::Dim2d { width: 16, height: 4 },
-    //         Format::R8G8B8A8Unorm,
-    //         queue.clone()
-    //     ).unwrap()
-    // };
+    // //     ImmutableImage::from_iter(
+    // //         image_data.iter().cloned(),
+    // //         Dimensions::Dim2d { width: 16, height: 4 },
+    // //         Format::R8G8B8A8Unorm,
+    // //         queue.clone()
+    // //     ).unwrap()
+    // // };
 
-    // let sampler = Sampler::new(
-    //     device.clone(),
-    //     Filter::Nearest,
-    //     Filter::Nearest,
-    //     MipmapMode::Nearest,
-    //     SamplerAddressMode::ClampToEdge,
-    //     SamplerAddressMode::ClampToEdge,
-    //     SamplerAddressMode::ClampToEdge,
-    //     0.0, 1.0, 0.0, 0.0
-    // ).unwrap();
+    // // let sampler = Sampler::new(
+    // //     device.clone(),
+    // //     Filter::Nearest,
+    // //     Filter::Nearest,
+    // //     MipmapMode::Nearest,
+    // //     SamplerAddressMode::ClampToEdge,
+    // //     SamplerAddressMode::ClampToEdge,
+    // //     SamplerAddressMode::ClampToEdge,
+    // //     0.0, 1.0, 0.0, 0.0
+    // // ).unwrap();
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -331,7 +205,7 @@ fn main() {
         scissors: None
     };
 
-    let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
+    let mut framebuffers = system::get_window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
 
     let mut recreate_swapchain = false;
 
@@ -367,7 +241,7 @@ fn main() {
 
             swapchain = new_swapchain;
 
-            framebuffers = window_size_dependent_setup(&new_images, render_pass.clone(), &mut dynamic_state);
+            framebuffers = system::get_window_size_dependent_setup(&new_images, render_pass.clone(), &mut dynamic_state);
 
             recreate_swapchain = false;
         }
@@ -408,8 +282,8 @@ fn main() {
         .draw_indexed(
             pipeline.clone(),
             &dynamic_state,
-            vertex_buffer.clone(),
-            index_buffer.clone(),
+            pattern_table.vertex_buffer.clone(),
+            pattern_table.index_buffer.clone(),
             descriptor_set.clone(),
             push_constants
         ).unwrap()
@@ -511,28 +385,4 @@ fn main() {
             return;
         }
     }
-}
-
-fn window_size_dependent_setup(
-    images: &[Arc<SwapchainImage<Window>>],
-    render_pass: Arc<RenderPassAbstract + Send + Sync>,
-    dynamic_state: &mut DynamicState
-) -> Vec<Arc<FramebufferAbstract + Send + Sync>> {
-    let dimensions = images[0].dimensions();
-
-    let viewport = Viewport {
-        origin: [0.0, 0.0],
-        dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-        depth_range: 0.0 .. 1.0,
-    };
-
-    dynamic_state.viewports = Some(vec!(viewport));
-
-    images.iter().map(|image| {
-        Arc::new(
-            Framebuffer::start(render_pass.clone())
-                .add(image.clone()).unwrap()
-                .build().unwrap()
-        ) as Arc<FramebufferAbstract + Send + Sync>
-    }).collect::<Vec<_>>()
 }

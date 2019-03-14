@@ -11,22 +11,22 @@ use cgmath::{
 // use crate::attribute_table::AttributeTable;
 // use crate::nametable::Nametable;
 // use crate::palette::Palette;
-use crate::pattern_table::PatternTable;
+// use crate::pattern_table::PatternTable;
 
-use std::option::Option;
-use std::sync::Arc;
+// use std::option::Option;
+// use std::sync::Arc;
 
-use vulkano::device::{
-    Device,
-    DeviceExtensions,
-    QueuesIter,
-};
+// use vulkano::device::{
+//     Device,
+//     DeviceExtensions,
+//     QueuesIter,
+// };
 
-use vulkano::instance::{
-    Instance,
-    PhysicalDevice,
-    QueueFamily,
-};
+// use vulkano::instance::{
+//     Instance,
+//     PhysicalDevice,
+//     QueueFamily,
+// };
 
 pub struct View {
     pub model: Matrix4<f32>,

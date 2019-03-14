@@ -1,13 +1,13 @@
 // Copyright 2019, Sjors van Gelderen
 
-pub struct Nametable {
+// pub struct Nametable {
 
-}
+// }
 
-impl Nametable {
-    pub fn zero() -> Nametable {
-        Nametable {
+// impl Nametable {
+//     pub fn zero() -> Nametable {
+//         Nametable {
             
-        }
-    }
-}
+//         }
+//     }
+// }

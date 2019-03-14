@@ -15,7 +15,6 @@ impl Surface {
         let d = dimensions;
 
         // TODO: Consider the Vulkan coordinate system
-
         let positions: [[f32; 3]; 4] = [
             [ p.x / 2.0 - d.x / 2.0, p.y / 2.0 + d.y / 2.0, 1.0],
             [ p.x / 2.0 - d.x / 2.0, p.y / 2.0 - d.y / 2.0, 1.0],
