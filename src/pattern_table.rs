@@ -11,12 +11,26 @@ use std::{
     sync::Arc,
 };
 
-use vulkano::buffer::{
-    BufferUsage,
-    CpuAccessibleBuffer
+use vulkano::{
+    buffer::{
+        BufferUsage,
+        CpuAccessibleBuffer
+    },
+    command_buffer::{
+        AutoCommandBuffer,
+        CommandBufferExecFuture,
+    },
+    device::{
+        Device,
+        Queue,
+    },
+    format::Format,
+    image::{
+        Dimensions,
+        ImmutableImage,
+    },
+    sync::NowFuture,
 };
-
-use vulkano::device::Device;
 
 pub struct PatternTable {
     pub bytes: [u8; 8192],
@@ -60,6 +74,23 @@ impl PatternTable {
             pixels,
             ..self
         }
+    }
+
+    pub fn get_texture_and_future(&self, queue: Arc<Queue>) -> (Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
+        let mut image_data: [u8; 32768] = [0u8; 32768];
+        
+        for (i, x) in (*self).pixels.iter().enumerate() {
+            let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
+
+            image_data[i] = pixel;
+        }
+
+        ImmutableImage::from_iter(
+            image_data.iter().cloned(),
+            Dimensions::Dim2d { width: 256, height: 128 },
+            Format::R8Unorm,
+            queue.clone()
+        ).unwrap()
     }
 
     fn get_surface() -> Surface {

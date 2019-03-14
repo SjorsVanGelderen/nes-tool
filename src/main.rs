@@ -44,17 +44,8 @@ use vulkano::command_buffer::{
 
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 
-use vulkano::format::{
-    Format,
-};
-
 use vulkano::framebuffer::{
     Subpass,
-};
-
-use vulkano::image::{
-    Dimensions,
-    ImmutableImage,
 };
 
 use vulkano::pipeline::{
@@ -140,23 +131,8 @@ fn main() {
             .unwrap()
     );
 
-    // // TODO: Move this logic to the pattern table module
-    let (texture, tex_future) = {
-        let mut image_data: [u8; 32768] = [0u8; 32768];
-        
-        for (i, x) in pattern_table.pixels.iter().enumerate() {
-            let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
-
-            image_data[i] = pixel;
-        }
-
-        ImmutableImage::from_iter(
-            image_data.iter().cloned(),
-            Dimensions::Dim2d { width: 256, height: 128 },
-            Format::R8Unorm,
-            queue.clone()
-        ).unwrap()
-    };
+    // TODO: Perhaps this can be moved to the pattern table module
+    let (texture, tex_future) = pattern_table.get_texture_and_future(queue.clone());
 
     let sampler = Sampler::new(
         device.clone(),
@@ -175,29 +151,29 @@ fn main() {
         .build().unwrap()
     );
 
-    // // let (texture, tex_future) = {
-    // //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
-    // //         |x| vec![x[0], x[1], x[2], 255u8]
-    // //     ).collect();
+    // let (texture, tex_future) = {
+    //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
+    //         |x| vec![x[0], x[1], x[2], 255u8]
+    //     ).collect();
 
-    // //     ImmutableImage::from_iter(
-    // //         image_data.iter().cloned(),
-    // //         Dimensions::Dim2d { width: 16, height: 4 },
-    // //         Format::R8G8B8A8Unorm,
-    // //         queue.clone()
-    // //     ).unwrap()
-    // // };
+    //     ImmutableImage::from_iter(
+    //         image_data.iter().cloned(),
+    //         Dimensions::Dim2d { width: 16, height: 4 },
+    //         Format::R8G8B8A8Unorm,
+    //         queue.clone()
+    //     ).unwrap()
+    // };
 
-    // // let sampler = Sampler::new(
-    // //     device.clone(),
-    // //     Filter::Nearest,
-    // //     Filter::Nearest,
-    // //     MipmapMode::Nearest,
-    // //     SamplerAddressMode::ClampToEdge,
-    // //     SamplerAddressMode::ClampToEdge,
-    // //     SamplerAddressMode::ClampToEdge,
-    // //     0.0, 1.0, 0.0, 0.0
-    // // ).unwrap();
+    // let sampler = Sampler::new(
+    //     device.clone(),
+    //     Filter::Nearest,
+    //     Filter::Nearest,
+    //     MipmapMode::Nearest,
+    //     SamplerAddressMode::ClampToEdge,
+    //     SamplerAddressMode::ClampToEdge,
+    //     SamplerAddressMode::ClampToEdge,
+    //     0.0, 1.0, 0.0, 0.0
+    // ).unwrap();
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
