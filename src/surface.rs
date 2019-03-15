@@ -4,13 +4,23 @@ use cgmath::Vector2;
 
 use crate::vertex::Vertex;
 
+use vulkano::{
+    buffer::{
+        BufferUsage,
+        CpuAccessibleBuffer,
+    },
+    device::Device,
+};
+
+use std::sync::Arc;
+
 pub struct Surface {
-    pub vertices: Vec<Vertex>,
-    pub indices: Vec<u32>,
+    pub vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
+    pub index_buffer: Arc<CpuAccessibleBuffer<[u32]>>,
 }
 
 impl Surface {
-    pub fn zero(position: Vector2<f32>, dimensions: Vector2<f32>) -> Surface {
+    pub fn new(device: Arc<Device>, position: Vector2<f32>, dimensions: Vector2<f32>) -> Self {
         let p = position;
         let d = dimensions;
 
@@ -29,15 +39,35 @@ impl Surface {
             [1.0, 0.0],
         ];
 
-        let indices: [u32; 6] = [
-            0, 1, 2, 2, 3, 0
-        ];
+        let indices: Vec<u32> = vec![0, 1, 2, 2, 3, 0];
 
-        Surface {
-            vertices: positions.iter().zip(uvs.iter()).map(
-                |(p, u)| Vertex { position: *p, uv: *u } 
-            ).collect(),
-            indices: indices.to_vec(), // TODO: Check if the CpuAccessibleBuffer accepts slices also
+        let vertices: Vec<Vertex> = positions.iter().zip(uvs.iter()).map(
+            |(p, u)| Vertex { position: *p, uv: *u } 
+        ).collect();
+
+        let vertex_buffer = Self::get_vertex_buffer(device.clone(), vertices);
+        let index_buffer = Self::get_index_buffer(device.clone(), indices);
+
+        Self {
+            vertex_buffer,
+            index_buffer,
         }
+    }
+
+    // TODO: Find alternative to CpuAccessibleBuffer as it will be deprecated soon
+    fn get_vertex_buffer(device: Arc<Device>, vertices: Vec<Vertex>) -> Arc<CpuAccessibleBuffer<[Vertex]>> {
+        CpuAccessibleBuffer::from_iter(
+            device.clone(), 
+            BufferUsage::all(),
+            vertices.iter().cloned()
+        ).unwrap()
+    }
+
+    fn get_index_buffer(device: Arc<Device>, indices: Vec<u32>) -> Arc<CpuAccessibleBuffer<[u32]>> {
+        CpuAccessibleBuffer::from_iter(
+            device.clone(),
+            BufferUsage::all(),
+            indices.iter().cloned()
+        ).unwrap()
     }
 }

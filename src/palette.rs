@@ -1,31 +1,63 @@
-// Copyright 2019, Sjors van Gelderen
+// // Copyright 2019, Sjors van Gelderen
 
 // use cgmath::Vector2;
 
 // use crate::surface::Surface;
+// use crate::vertex::Vertex;
 
-// struct Palette {
-//     // color_indices: [u32; 26],
+// use std::sync::Arc;
+
+// use vulkano::{
+//     device::Device,
+// };
+
+// pub struct Palette {
+//     color_indices: [u8; 26],
+//     surface: Surface,
 // }
 
 // impl Palette {
-//     fn zero() -> Palette {
-//         Palette {
-//             // color_indices = 
+//     pub fn new(device: Arc<Device>) -> Self {
+//         let surface = Self::get_surface(device.clone());
+
+//         let mut color_indices: [u8; 26] = [0; 26];
+//         for (i, x) in (0..26).enumerate() {
+//             color_indices[i] = x;
+//         }
+
+//         Self {
+//             color_indices,
+//             surface,
 //         }
 //     }
 
-//     // fn set_color_index(&self, which: i32, color_index: i32) -> PaletteData {
-//     //     let mut color_indices = self.color_indices;
-//     //     color_indices[which] = color_index;
+//     fn get_surface(device: Arc<Device>) -> Surface {
+//         Surface::new(device.clone(), Vector2::new(0.0, 0.0), Vector2::new(0.0, 0.0))
+//     }
 
-//     //     Palette { color_indices: color_indices, ..self }
-//     // }
+//     fn set_color_index(self, which: usize, to_color_index: u8) -> Self {
+//         let mut color_indices = self.color_indices;
+//         color_indices[which] = to_color_index;
+
+//         Self {
+//             color_indices,
+//             ..self
+//         }
+//     }
 // }
 
-// pub fn surface_zero() -> Surface {
-//     Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(16.0, 4.0))
-// }
+// // let (texture, tex_future) = {
+// //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
+// //         |x| vec![x[0], x[1], x[2], 255u8]
+// //     ).collect();
+
+// //     ImmutableImage::from_iter(
+// //         image_data.iter().cloned(),
+// //         Dimensions::Dim2d { width: 16, height: 4 },
+// //         Format::R8G8B8A8Unorm,
+// //         queue.clone()
+// //     ).unwrap()
+// // };
 
 // pub static FULL_PALETTE: [u8; 192] = [ 
 //     101u8, 101u8, 101u8,

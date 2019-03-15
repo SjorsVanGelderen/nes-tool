@@ -9,6 +9,7 @@ extern crate winit;
 
 // use crate::attribute_table::AttributeTable;
 use crate::app_state::AppState;
+// use crate::palette::Palette;
 use crate::pattern_table::PatternTable;
 // use crate::nametable::Nametable;
 // use crate::samples::Samples;
@@ -43,14 +44,6 @@ use vulkano::command_buffer::{
 };
 
 use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
-
-use vulkano::framebuffer::{
-    Subpass,
-};
-
-use vulkano::pipeline::{
-    GraphicsPipeline,
-};
 
 use vulkano::sampler::{
     Sampler,
@@ -91,49 +84,6 @@ fn main() {
     let surface = system::get_surface(&events_loop, instance.clone());
     let window = surface.window();
 
-    let (mut swapchain, images) = system::get_swapchain_and_images(
-        surface.clone(), 
-        physical, 
-        window, 
-        device.clone(), 
-        queue.clone()
-    );
-
-    let pattern_table = PatternTable::zero(device.clone()).load_from_file(Path::new("mario.chr"));
-
-    let render_pass = Arc::new(
-        vulkano::single_pass_renderpass!(
-            device.clone(),
-            attachments: {
-                color: {
-                    load: Clear,
-                    store: Store,
-                    format: swapchain.format(),
-                    samples: 1,
-                }
-            },
-            pass: {
-                color: [color],
-                depth_stencil: {}
-            }
-        ).unwrap()
-    );
-
-    let pipeline = Arc::new(
-        GraphicsPipeline::start()
-            .vertex_input_single_buffer()
-            .vertex_shader(pattern_table.vertex_shader.main_entry_point(), ())
-            .triangle_list()
-            .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(pattern_table.fragment_shader.main_entry_point(), ())
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
-            .build(device.clone())
-            .unwrap()
-    );
-
-    // TODO: Perhaps this can be moved to the pattern table module
-    let (texture, tex_future) = pattern_table.get_texture_and_future(queue.clone());
-
     let sampler = Sampler::new(
         device.clone(),
         Filter::Nearest,
@@ -145,35 +95,26 @@ fn main() {
         0.0, 1.0, 0.0, 0.0
     ).unwrap();
 
+    let (mut swapchain, images) = system::get_swapchain_and_images(
+        surface.clone(), 
+        physical, 
+        window, 
+        device.clone(), 
+        queue.clone()
+    );
+
+    // let palette = Palette::new(device.clone());
+
+    let pattern_table = PatternTable::new(device.clone(), swapchain.clone())
+        .load_from_file(Path::new("mario.chr"));
+
+    let (texture, tex_future) = pattern_table.get_texture_and_future(queue.clone());
+
     let descriptor_set = Arc::new(
-        PersistentDescriptorSet::start(pipeline.clone(), 0)
+        PersistentDescriptorSet::start(pattern_table.pipeline.clone(), 0)
         .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
         .build().unwrap()
     );
-
-    // let (texture, tex_future) = {
-    //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
-    //         |x| vec![x[0], x[1], x[2], 255u8]
-    //     ).collect();
-
-    //     ImmutableImage::from_iter(
-    //         image_data.iter().cloned(),
-    //         Dimensions::Dim2d { width: 16, height: 4 },
-    //         Format::R8G8B8A8Unorm,
-    //         queue.clone()
-    //     ).unwrap()
-    // };
-
-    // let sampler = Sampler::new(
-    //     device.clone(),
-    //     Filter::Nearest,
-    //     Filter::Nearest,
-    //     MipmapMode::Nearest,
-    //     SamplerAddressMode::ClampToEdge,
-    //     SamplerAddressMode::ClampToEdge,
-    //     SamplerAddressMode::ClampToEdge,
-    //     0.0, 1.0, 0.0, 0.0
-    // ).unwrap();
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -181,13 +122,9 @@ fn main() {
         scissors: None
     };
 
-    let mut framebuffers = system::get_window_size_dependent_setup(&images, render_pass.clone(), &mut dynamic_state);
-
+    let mut framebuffers = system::get_window_size_dependent_setup(&images, pattern_table.render_pass.clone(), &mut dynamic_state);
     let mut recreate_swapchain = false;
-
-    // TODO: Read up on this
     let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
-    // let mut previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<GpuFuture>;
 
     let mut app_state: AppState = AppState::new(4.0 / 3.0);
 
@@ -216,9 +153,7 @@ fn main() {
                 };
 
             swapchain = new_swapchain;
-
-            framebuffers = system::get_window_size_dependent_setup(&new_images, render_pass.clone(), &mut dynamic_state);
-
+            framebuffers = system::get_window_size_dependent_setup(&new_images, pattern_table.render_pass.clone(), &mut dynamic_state);
             recreate_swapchain = false;
         }
 
@@ -256,10 +191,10 @@ fn main() {
             clear_values
         ).unwrap()
         .draw_indexed(
-            pipeline.clone(),
+            pattern_table.pipeline.clone(),
             &dynamic_state,
-            pattern_table.vertex_buffer.clone(),
-            pattern_table.index_buffer.clone(),
+            pattern_table.surface.vertex_buffer.clone(),
+            pattern_table.surface.index_buffer.clone(),
             descriptor_set.clone(),
             push_constants
         ).unwrap()

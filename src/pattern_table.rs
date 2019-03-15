@@ -7,59 +7,82 @@ use crate::surface::Surface;
 use crate::vertex::Vertex;
 
 use std::{
+    boxed::Box,
+    marker::{
+        Send,
+        Sync,
+    },
     path::Path,
     sync::Arc,
 };
 
 use vulkano::{
-    buffer::{
-        BufferUsage,
-        CpuAccessibleBuffer
-    },
     command_buffer::{
         AutoCommandBuffer,
         CommandBufferExecFuture,
     },
+    descriptor::PipelineLayoutAbstract,
     device::{
         Device,
         Queue,
     },
     format::Format,
+    framebuffer::{
+        RenderPassAbstract,
+        Subpass,
+    },
     image::{
         Dimensions,
         ImmutableImage,
     },
+    pipeline::{
+        GraphicsPipeline,
+        vertex::{
+            SingleBufferDefinition
+        },
+    },
+    swapchain::Swapchain,
     sync::NowFuture,
 };
+
+use winit::Window;
+
+type PatternTableGraphicsPipeline = Arc<
+    GraphicsPipeline<
+        SingleBufferDefinition<Vertex>,
+        Box<(dyn PipelineLayoutAbstract + Sync + Send + 'static)>,
+        Arc<(dyn RenderPassAbstract + Sync + Send + 'static)>
+    >
+>;
 
 pub struct PatternTable {
     pub bytes: [u8; 8192],
     pub pixels: [u8; 32768],
     pub surface: Surface,
-    pub vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
-    pub index_buffer: Arc<CpuAccessibleBuffer<[u32]>>,
     pub vertex_shader: vs::Shader,
     pub fragment_shader: fs::Shader,
+    pub render_pass: Arc<RenderPassAbstract + Send + Sync>,
+    pub pipeline: PatternTableGraphicsPipeline,
 }
 
 impl PatternTable {
-    pub fn zero(device: Arc<Device>) -> Self {
+    pub fn new(device: Arc<Device>, swapchain: Arc<Swapchain<Window>>) -> Self {
         let bytes = [0; 8192];
         let pixels = [0; 32768];
-        let surface = PatternTable::get_surface();
-        let vertex_buffer = PatternTable::get_vertex_buffer(device.clone(), &surface);
-        let index_buffer = PatternTable::get_index_buffer(device.clone(), &surface);
+        let surface = Self::get_surface(device.clone());
         let vertex_shader = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
+        let render_pass = Self::get_render_pass(device.clone(), swapchain.clone());
+        let pipeline = Self::get_pipeline(device.clone(), &vertex_shader, &fragment_shader, render_pass.clone());
 
-        PatternTable {
+        Self {
             bytes,
             pixels,
             surface,
-            vertex_buffer,
-            index_buffer,
             vertex_shader,
             fragment_shader,
+            render_pass,
+            pipeline,
         }
     }
 
@@ -93,25 +116,47 @@ impl PatternTable {
         ).unwrap()
     }
 
-    fn get_surface() -> Surface {
-        Surface::zero(Vector2::new(0.0, 0.0), Vector2::new(200.0, 100.0))
+    fn get_surface(device: Arc<Device>) -> Surface {
+        Surface::new(device.clone(), Vector2::new(0.0, 0.0), Vector2::new(200.0, 100.0))
     }
 
-    // TODO: Find alternative to CpuAccessibleBuffer as it will be deprecated soon
-    fn get_vertex_buffer(device: Arc<Device>, surface: &Surface) -> Arc<CpuAccessibleBuffer<[Vertex]>> {
-        CpuAccessibleBuffer::from_iter(
-            device.clone(), 
-            BufferUsage::all(),
-            surface.vertices.iter().cloned()
-        ).unwrap()
+    fn get_render_pass(device: Arc<Device>, swapchain: Arc<Swapchain<Window>>) -> Arc<RenderPassAbstract + Send + Sync> {
+        Arc::new(
+            vulkano::single_pass_renderpass!(
+                device.clone(),
+                attachments: {
+                    color: {
+                        load: Clear,
+                        store: Store,
+                        format: swapchain.format(),
+                        samples: 1,
+                    }
+                },
+                pass: {
+                    color: [color],
+                    depth_stencil: {}
+                }
+            ).unwrap()
+        )
     }
 
-    fn get_index_buffer(device: Arc<Device>, surface: &Surface) -> Arc<CpuAccessibleBuffer<[u32]>> {
-        CpuAccessibleBuffer::from_iter(
-            device.clone(),
-            BufferUsage::all(),
-            surface.indices.iter().cloned()
-        ).unwrap()
+    fn get_pipeline(
+        device: Arc<Device>,
+        vertex_shader: &vs::Shader,
+        fragment_shader: &fs::Shader,
+        render_pass: Arc<RenderPassAbstract + Send + Sync>
+    ) -> PatternTableGraphicsPipeline {
+        Arc::new(
+            GraphicsPipeline::start()
+                .vertex_input_single_buffer()
+                .vertex_shader(vertex_shader.main_entry_point(), ())
+                .triangle_list()
+                .viewports_dynamic_scissors_irrelevant(1)
+                .fragment_shader(fragment_shader.main_entry_point(), ())
+                .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+                .build(device.clone())
+                .unwrap()
+        )
     }
 }
 
