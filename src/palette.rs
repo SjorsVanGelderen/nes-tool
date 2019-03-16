@@ -1,19 +1,87 @@
-// // Copyright 2019, Sjors van Gelderen
+// // // Copyright 2019, Sjors van Gelderen
 
-// use cgmath::Vector2;
+// // use cgmath::Vector2;
 
 // use crate::surface::Surface;
 // use crate::vertex::Vertex;
 
-// use std::sync::Arc;
-
-// use vulkano::{
-//     device::Device,
+// use std::{
+//     boxed::Box,
+//     marker::{
+//         Send,
+//         Sync,
+//     },
+//     path::Path,
+//     sync::Arc,
 // };
 
+// use vulkano::{
+//     command_buffer::{
+//         AutoCommandBuffer,
+//         CommandBufferExecFuture,
+//     },
+//     descriptor::{
+//         descriptor_set::{
+//             PersistentDescriptorSet,
+//             PersistentDescriptorSetImg,
+//             PersistentDescriptorSetSampler,
+//         },
+//         PipelineLayoutAbstract,
+//     },
+//     device::{
+//         Device,
+//         Queue,
+//     },
+//     format::Format,
+//     framebuffer::{
+//         RenderPassAbstract,
+//         Subpass,
+//     },
+//     image::{
+//         Dimensions,
+//         ImmutableImage,
+//     },
+//     pipeline::{
+//         GraphicsPipeline,
+//         vertex::{
+//             SingleBufferDefinition,
+//         }
+//     },
+//     sampler::Sampler,
+//     swapchain::Swapchain,
+//     sync::NowFuture,
+// };
+
+// use winit::Window;
+
+// type PaletteGraphicsPipeline = Arc<
+//     GraphicsPipeline<
+//         SingleBufferDefinition<Vertex>,
+//         Box<(dyn PipelineLayoutAbstract + Sync + Send + 'static)>,
+//         Arc<(dyn RenderPassAbstract + Sync + Send + 'static)>
+//     >
+// >;
+
+// type PaletteDescriptorSet = Arc<
+//     PersistentDescriptorSet<
+//         PaletteGraphicsPipeline,
+//         (
+//             ((), PersistentDescriptorSetImg<Arc<ImmutableImage<Format>>>),
+//             PersistentDescriptorSetSampler
+//         )
+//     >
+// >;
+
 // pub struct Palette {
-//     color_indices: [u8; 26],
-//     surface: Surface,
+//     pub color_indices: [u8; 26],
+//     pub surface: Surface,
+//     pub vertex_shader: vs::Shader,
+//     pub fragment_shader: fs::Shader,
+//     pub render_pass: Arc<RenderPassAbstract + Send + Sync>,
+//     pub pipeline: PaletteGraphicsPipeline,
+//     pub texture: Arc<ImmutableImage<<Format>>,
+//     pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
+//     pub descriptor_set: PaletteDescriptorSet,
 // }
 
 // impl Palette {
@@ -46,18 +114,68 @@
 //     }
 // }
 
-// // let (texture, tex_future) = {
-// //     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
-// //         |x| vec![x[0], x[1], x[2], 255u8]
-// //     ).collect();
+// mod vs {
+//     vulkano_shaders::shader!{
+//     ty: "vertex",
+//     src:
+// "
+// #version 450
 
-// //     ImmutableImage::from_iter(
-// //         image_data.iter().cloned(),
-// //         Dimensions::Dim2d { width: 16, height: 4 },
-// //         Format::R8G8B8A8Unorm,
-// //         queue.clone()
-// //     ).unwrap()
-// // };
+// layout(location = 0) in vec3 position;
+// layout(location = 1) in vec2 uv;
+
+// // layout(set = 0, binding = 0) uniform UniformBufferObject
+// // {
+// //     mat4 mvp;
+// // } ubo;
+
+// layout(push_constant) uniform Matrices {
+//     mat4 mvp;
+// } matrices;
+
+// layout(location = 0) out vec2 uv_out;
+
+// void main() {
+//     gl_Position = matrices.mvp * vec4(position, 1);
+
+//     uv_out = uv;
+// }
+// "
+//     }
+// }
+
+// mod fs {
+//     vulkano_shaders::shader!{
+//         ty: "fragment",
+//         src:
+// "
+// #version 450
+
+// layout(location = 0) in vec2 uv;
+
+// layout(set = 0, binding = 0) uniform sampler2D tex; 
+
+// layout(location = 0) out vec4 color;
+
+// void main() {
+//     color = vec4(texture(tex, uv).xxx, 1.0);
+// }
+// "
+//     }
+// }
+
+// let (texture, tex_future) = {
+//     let image_data: Vec<u8> = palette::FULL_PALETTE.chunks(3).flat_map(
+//         |x| vec![x[0], x[1], x[2], 255u8]
+//     ).collect();
+
+//     ImmutableImage::from_iter(
+//         image_data.iter().cloned(),
+//         Dimensions::Dim2d { width: 16, height: 4 },
+//         Format::R8G8B8A8Unorm,
+//         queue.clone()
+//     ).unwrap()
+// };
 
 // pub static FULL_PALETTE: [u8; 192] = [ 
 //     101u8, 101u8, 101u8,

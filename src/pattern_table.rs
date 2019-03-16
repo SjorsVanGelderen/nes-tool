@@ -66,8 +66,10 @@ type PatternTableGraphicsPipeline = Arc<
 type PatternTableDescriptorSet = Arc<
     PersistentDescriptorSet<
         PatternTableGraphicsPipeline,
-        (((), PersistentDescriptorSetImg<Arc<ImmutableImage<Format>>>),
-        PersistentDescriptorSetSampler)
+        (
+            ((), PersistentDescriptorSetImg<Arc<ImmutableImage<Format>>>),
+            PersistentDescriptorSetSampler
+        )
     >
 >;
 

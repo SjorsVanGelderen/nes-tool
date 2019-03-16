@@ -154,6 +154,7 @@ fn main() {
 
         let mvp = view.mvp();
 
+        // TODO: Figure out a way to make the shader data private and get it here in a different way
         // TODO: Figure out a better way to supply a mat4 as a push constant
         let push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
