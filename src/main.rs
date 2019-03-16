@@ -7,17 +7,7 @@ extern crate vulkano_shaders;
 extern crate vulkano_win;
 extern crate winit;
 
-// use crate::attribute_table::AttributeTable;
-use crate::app_state::AppState;
-// use crate::palette::Palette;
-use crate::pattern_table::PatternTable;
-// use crate::nametable::Nametable;
-// use crate::samples::Samples;
-// use crate::surface::Surface;
-// use crate::vertex::Vertex;
-
 mod attribute_table;
-mod app_state;
 mod media;
 mod mode;
 mod nametable;
@@ -29,6 +19,17 @@ mod system;
 mod tool;
 mod vertex;
 
+// use crate::attribute_table::AttributeTable;
+// use crate::palette::Palette;
+use crate::pattern_table::PatternTable;
+// use crate::nametable::Nametable;
+// use crate::samples::Samples;
+
+use crate::system::{
+    Mouse,
+    View,
+};
+
 use cgmath::{
     Matrix4,
     Vector2,
@@ -36,14 +37,11 @@ use cgmath::{
 };
 
 use std::path::Path;
-use std::sync::Arc;
 
 use vulkano::command_buffer::{
     AutoCommandBufferBuilder,
     DynamicState,
 };
-
-use vulkano::descriptor::descriptor_set::PersistentDescriptorSet;
 
 use vulkano::sampler::{
     Sampler,
@@ -108,8 +106,6 @@ fn main() {
     let pattern_table = PatternTable::new(device.clone(), queue.clone(), swapchain.clone(), sampler.clone())
         .load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
 
-    let mut app_state: AppState = AppState::new(4.0 / 3.0);
-
     let mut dynamic_state = DynamicState {
         line_width: None, 
         viewports: None, 
@@ -123,6 +119,9 @@ fn main() {
     let mut recreate_swapchain = false;
     let mut previous_frame_end = Box::new(pattern_table.tex_future) as Box<GpuFuture>;
 
+    let mut view = View::new(Vector2::new(1280, 720));
+    let mut mouse = Mouse::new();
+
     loop {
         previous_frame_end.cleanup_finished();
 
@@ -130,9 +129,7 @@ fn main() {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
 
-                app_state.aspect = dimensions.0 as f32 / dimensions.1 as f32;
-                app_state.view = app_state.view.update_projection(app_state.aspect);
-                app_state.dimensions = Vector2::new(dimensions.0, dimensions.1);
+                view = View::new(Vector2::new(dimensions.0, dimensions.1));
 
                 [dimensions.0, dimensions.1]
             }
@@ -155,7 +152,7 @@ fn main() {
             recreate_swapchain = false;
         }
 
-        let mvp = app_state.view.mvp();
+        let mvp = view.mvp();
 
         // TODO: Figure out a better way to supply a mat4 as a push constant
         let push_constants = pattern_table::vs::ty::Matrices {
@@ -234,20 +231,20 @@ fn main() {
                     event: WindowEvent::CursorMoved { position, .. },
                     ..
                 } => {
-                    app_state.mouse.position = Vector2::new(position.x as f32, position.y as f32);
+                    mouse.position = Vector2::new(position.x as f32, position.y as f32);
 
-                    if app_state.dragging {
-                        app_state.view = app_state.view.update_model(
+                    if mouse.dragging {
+                        view = view.update_model(
                             Matrix4::from_translation(
                                 Vector3::new(
-                                    (app_state.mouse.position.x - app_state.dimensions.x as f32 / 2.0) / 1000.0,
-                                    (app_state.mouse.position.y - app_state.dimensions.y as f32 / 2.0) / 1000.0, 
+                                    (mouse.position.x - view.dimensions.x as f32 / 2.0) / 1000.0,
+                                    (mouse.position.y - view.dimensions.y as f32 / 2.0) / 1000.0, 
                                     0.0
                                 )
                             )
                         );
 
-                        app_state.view = app_state.view.update_projection(app_state.aspect);
+                        view = view.update_projection();
                     }
                 },
                 Event::WindowEvent {
@@ -256,14 +253,14 @@ fn main() {
                 } => {
                     match button {
                         MouseButton::Left => {
-                            // app_state.mouse.left_down = state == ElementState::Pressed;
+                            // mouse.left_down = state == ElementState::Pressed;
 
                             if state == ElementState::Pressed {
-                                app_state.drag_start = app_state.mouse.position;
+                                mouse.drag_start = mouse.position;
                             }
                         },
                         MouseButton::Right => {
-                            // app_state.mouse.left_down = state == ElementState::Pressed;
+                            // mouse.left_down = state == ElementState::Pressed;
                         },
                         _ => ()
                     }
@@ -283,7 +280,7 @@ fn main() {
                         done = true;
                     }
                     else if code == VirtualKeyCode::Space {
-                        app_state.dragging = state == ElementState::Pressed;
+                        mouse.dragging = state == ElementState::Pressed;
                     }
                 },
                 _ => ()
