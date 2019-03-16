@@ -21,7 +21,14 @@ use vulkano::{
         AutoCommandBuffer,
         CommandBufferExecFuture,
     },
-    descriptor::PipelineLayoutAbstract,
+    descriptor::{
+        descriptor_set::{
+            PersistentDescriptorSet,
+            PersistentDescriptorSetImg,
+            PersistentDescriptorSetSampler,
+        },
+        PipelineLayoutAbstract,
+    },
     device::{
         Device,
         Queue,
@@ -41,6 +48,7 @@ use vulkano::{
             SingleBufferDefinition
         },
     },
+    sampler::Sampler,
     swapchain::Swapchain,
     sync::NowFuture,
 };
@@ -55,6 +63,14 @@ type PatternTableGraphicsPipeline = Arc<
     >
 >;
 
+type PatternTableDescriptorSet = Arc<
+    PersistentDescriptorSet<
+        PatternTableGraphicsPipeline,
+        (((), PersistentDescriptorSetImg<Arc<ImmutableImage<Format>>>),
+        PersistentDescriptorSetSampler)
+    >
+>;
+
 pub struct PatternTable {
     pub bytes: [u8; 8192],
     pub pixels: [u8; 32768],
@@ -63,10 +79,13 @@ pub struct PatternTable {
     pub fragment_shader: fs::Shader,
     pub render_pass: Arc<RenderPassAbstract + Send + Sync>,
     pub pipeline: PatternTableGraphicsPipeline,
+    pub texture: Arc<ImmutableImage<Format>>,
+    pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
+    pub descriptor_set: PatternTableDescriptorSet,
 }
 
 impl PatternTable {
-    pub fn new(device: Arc<Device>, swapchain: Arc<Swapchain<Window>>) -> Self {
+    pub fn new(device: Arc<Device>, queue: Arc<Queue>, swapchain: Arc<Swapchain<Window>>, sampler: Arc<Sampler>) -> Self {
         let bytes = [0; 8192];
         let pixels = [0; 32768];
         let surface = Self::get_surface(device.clone());
@@ -74,6 +93,10 @@ impl PatternTable {
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
         let render_pass = Self::get_render_pass(device.clone(), swapchain.clone());
         let pipeline = Self::get_pipeline(device.clone(), &vertex_shader, &fragment_shader, render_pass.clone());
+
+        // Arguably redundant
+        let (texture, tex_future) = Self::get_texture_and_future(queue.clone(), &pixels);
+        let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
             bytes,
@@ -83,44 +106,39 @@ impl PatternTable {
             fragment_shader,
             render_pass,
             pipeline,
+            texture,
+            tex_future,
+            descriptor_set,
         }
     }
 
-    pub fn load_from_file(self, path: &Path) -> Self {
+    pub fn load_from_file(self, path: &Path, queue: Arc<Queue>, sampler: Arc<Sampler>) -> Self {
         let (bytes, pixels) = match media::load_pattern_table_bytes_and_pixels(path) {
             Ok(result) => result,
             Err(_) => panic!("Failed to load bytes and pixels for pattern table!")
         };
 
-        PatternTable {
+        let (texture, tex_future) = Self::get_texture_and_future(queue.clone(), &pixels);
+        let descriptor_set = Self::get_descriptor_set(self.pipeline.clone(), texture.clone(), sampler.clone());
+
+        Self {
             bytes,
             pixels,
+            texture,
+            tex_future,
+            descriptor_set,
             ..self
         }
-    }
-
-    pub fn get_texture_and_future(&self, queue: Arc<Queue>) -> (Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
-        let mut image_data: [u8; 32768] = [0u8; 32768];
-        
-        for (i, x) in (*self).pixels.iter().enumerate() {
-            let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
-
-            image_data[i] = pixel;
-        }
-
-        ImmutableImage::from_iter(
-            image_data.iter().cloned(),
-            Dimensions::Dim2d { width: 256, height: 128 },
-            Format::R8Unorm,
-            queue.clone()
-        ).unwrap()
     }
 
     fn get_surface(device: Arc<Device>) -> Surface {
         Surface::new(device.clone(), Vector2::new(0.0, 0.0), Vector2::new(200.0, 100.0))
     }
 
-    fn get_render_pass(device: Arc<Device>, swapchain: Arc<Swapchain<Window>>) -> Arc<RenderPassAbstract + Send + Sync> {
+    fn get_render_pass(
+        device: Arc<Device>,
+        swapchain: Arc<Swapchain<Window>>
+    ) -> Arc<RenderPassAbstract + Send + Sync> {
         Arc::new(
             vulkano::single_pass_renderpass!(
                 device.clone(),
@@ -156,6 +174,38 @@ impl PatternTable {
                 .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
                 .build(device.clone())
                 .unwrap()
+        )
+    }
+
+    fn get_texture_and_future(
+        queue: Arc<Queue>,
+        pixels: &[u8; 32768]
+    ) -> (Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
+        let mut image_data: [u8; 32768] = [0u8; 32768];
+        
+        for (i, x) in pixels.iter().enumerate() {
+            let pixel: u8 = (*x as f32 * (255.0 / 4.0)) as u8;
+
+            image_data[i] = pixel;
+        }
+
+        ImmutableImage::from_iter(
+            image_data.iter().cloned(),
+            Dimensions::Dim2d { width: 256, height: 128 },
+            Format::R8Unorm,
+            queue.clone()
+        ).unwrap()
+    }
+
+    fn get_descriptor_set(
+        pipeline: PatternTableGraphicsPipeline,
+        texture: Arc<ImmutableImage<Format>>,
+        sampler: Arc<Sampler>
+    ) -> PatternTableDescriptorSet {
+        Arc::new(
+            PersistentDescriptorSet::start(pipeline.clone(), 0)
+            .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
+            .build().unwrap()
         )
     }
 }

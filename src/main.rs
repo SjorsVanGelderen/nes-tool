@@ -105,16 +105,10 @@ fn main() {
 
     // let palette = Palette::new(device.clone());
 
-    let pattern_table = PatternTable::new(device.clone(), swapchain.clone())
-        .load_from_file(Path::new("mario.chr"));
+    let pattern_table = PatternTable::new(device.clone(), queue.clone(), swapchain.clone(), sampler.clone())
+        .load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
 
-    let (texture, tex_future) = pattern_table.get_texture_and_future(queue.clone());
-
-    let descriptor_set = Arc::new(
-        PersistentDescriptorSet::start(pattern_table.pipeline.clone(), 0)
-        .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
-        .build().unwrap()
-    );
+    let mut app_state: AppState = AppState::new(4.0 / 3.0);
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -122,11 +116,12 @@ fn main() {
         scissors: None
     };
 
-    let mut framebuffers = system::get_window_size_dependent_setup(&images, pattern_table.render_pass.clone(), &mut dynamic_state);
-    let mut recreate_swapchain = false;
-    let mut previous_frame_end = Box::new(tex_future) as Box<GpuFuture>;
+    let mut framebuffers = system::get_window_size_dependent_setup(
+        &images, pattern_table.render_pass.clone(), &mut dynamic_state
+    );
 
-    let mut app_state: AppState = AppState::new(4.0 / 3.0);
+    let mut recreate_swapchain = false;
+    let mut previous_frame_end = Box::new(pattern_table.tex_future) as Box<GpuFuture>;
 
     loop {
         previous_frame_end.cleanup_finished();
@@ -153,7 +148,10 @@ fn main() {
                 };
 
             swapchain = new_swapchain;
-            framebuffers = system::get_window_size_dependent_setup(&new_images, pattern_table.render_pass.clone(), &mut dynamic_state);
+            framebuffers = system::get_window_size_dependent_setup(
+                &new_images, pattern_table.render_pass.clone(), &mut dynamic_state
+            );
+            
             recreate_swapchain = false;
         }
 
@@ -195,7 +193,7 @@ fn main() {
             &dynamic_state,
             pattern_table.surface.vertex_buffer.clone(),
             pattern_table.surface.index_buffer.clone(),
-            descriptor_set.clone(),
+            pattern_table.descriptor_set.clone(),
             push_constants
         ).unwrap()
         .end_render_pass().unwrap()

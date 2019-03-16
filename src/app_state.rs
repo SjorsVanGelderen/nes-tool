@@ -1,5 +1,7 @@
 // Copyright 2019, Sjors van Gelderen
 
+// TODO: Move pretty much all of this to the system module
+
 use cgmath::{
     Vector2,
     Vector3,
