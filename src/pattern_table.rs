@@ -87,7 +87,12 @@ pub struct PatternTable {
 }
 
 impl PatternTable {
-    pub fn new(device: Arc<Device>, queue: Arc<Queue>, swapchain: Arc<Swapchain<Window>>, sampler: Arc<Sampler>) -> Self {
+    pub fn new(
+        device: Arc<Device>, 
+        queue: Arc<Queue>, 
+        swapchain: Arc<Swapchain<Window>>, 
+        sampler: Arc<Sampler>
+    ) -> Self {
         let bytes = [0; 8192];
         let pixels = [0; 32768];
         let surface = Self::get_surface(device.clone());
@@ -137,6 +142,7 @@ impl PatternTable {
         Surface::new(device.clone(), Vector2::new(0.0, 0.0), Vector2::new(200.0, 100.0))
     }
 
+    // TODO: Investigate whether this is specific for each surface
     fn get_render_pass(
         device: Arc<Device>,
         swapchain: Arc<Swapchain<Window>>
@@ -179,10 +185,9 @@ impl PatternTable {
         )
     }
 
-    fn get_texture_and_future(
-        queue: Arc<Queue>,
-        pixels: &[u8; 32768]
-    ) -> (Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>) {
+    fn get_texture_and_future(queue: Arc<Queue>, pixels: &[u8; 32768]) -> (
+        Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
+    ) {
         let mut image_data: [u8; 32768] = [0u8; 32768];
         
         for (i, x) in pixels.iter().enumerate() {

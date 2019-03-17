@@ -20,7 +20,7 @@ mod tool;
 mod vertex;
 
 // use crate::attribute_table::AttributeTable;
-// use crate::palette::Palette;
+use crate::palette::Palette;
 use crate::pattern_table::PatternTable;
 // use crate::nametable::Nametable;
 // use crate::samples::Samples;
@@ -32,6 +32,7 @@ use crate::system::{
 
 use cgmath::{
     Matrix4,
+    SquareMatrix,
     Vector2,
     Vector3,
 };
@@ -101,10 +102,10 @@ fn main() {
         queue.clone()
     );
 
-    // let palette = Palette::new(device.clone());
-
     let pattern_table = PatternTable::new(device.clone(), queue.clone(), swapchain.clone(), sampler.clone())
         .load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
+
+    let palette = Palette::new(device.clone(), queue.clone(), swapchain.clone(), sampler.clone(), pattern_table.render_pass.clone());
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -113,7 +114,9 @@ fn main() {
     };
 
     let mut framebuffers = system::get_window_size_dependent_setup(
-        &images, pattern_table.render_pass.clone(), &mut dynamic_state
+        &images,
+        pattern_table.render_pass.clone(), // TODO: Investigate whether this should come from the pattern table module at all
+        &mut dynamic_state
     );
 
     let mut recreate_swapchain = false;
@@ -121,6 +124,8 @@ fn main() {
 
     let mut view = View::new(Vector2::new(1280, 720));
     let mut mouse = Mouse::new();
+
+    let mut theta = 0.0f32;
 
     loop {
         previous_frame_end.cleanup_finished();
@@ -152,11 +157,23 @@ fn main() {
             recreate_swapchain = false;
         }
 
-        let mvp = view.mvp();
 
         // TODO: Figure out a way to make the shader data private and get it here in a different way
         // TODO: Figure out a better way to supply a mat4 as a push constant
-        let push_constants = pattern_table::vs::ty::Matrices {
+        let mvp = view.mvp();
+        let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
+            mvp: [
+                [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
+                [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
+                [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
+                [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
+            ],
+        };
+
+        theta = theta + 1.0;
+
+        let mvp = view.mvp_from_model(Matrix4::from_translation(Vector3::new(0.0, theta.sin() * 100.0, 0.0)));
+        let palette_push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
@@ -192,7 +209,16 @@ fn main() {
             pattern_table.surface.vertex_buffer.clone(),
             pattern_table.surface.index_buffer.clone(),
             pattern_table.descriptor_set.clone(),
-            push_constants
+            pattern_table_push_constants // TODO: Move this to the pattern table module
+        ).unwrap()
+        .draw_indexed(
+            palette.pipeline.clone(),
+            &dynamic_state,
+            palette.surface.vertex_buffer.clone(),
+            palette.surface.index_buffer.clone(),
+            // palette.descriptor_set.clone(),
+            pattern_table.descriptor_set.clone(), // TODO: Use the actual palette descriptor set
+            palette_push_constants // TODO: Move this to the palette module
         ).unwrap()
         .end_render_pass().unwrap()
         .build().unwrap();

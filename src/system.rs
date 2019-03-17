@@ -1,11 +1,11 @@
 // Copyright 2019, Sjors van Gelderen
 
 use cgmath::{
-    Vector2,
-    Vector3,
     Matrix4,
     Point3,
     SquareMatrix,
+    Vector2,
+    Vector3,
 };
 
 use vulkano::{
@@ -89,6 +89,10 @@ impl View {
 
     pub fn mvp(&self) -> Matrix4<f32> {
         self.model * self.view * self.projection
+    }
+
+    pub fn mvp_from_model(&self, model: Matrix4<f32>) -> Matrix4<f32> {
+        model * self.view * self.projection
     }
 
     pub fn update_model(&self, model: Matrix4<f32>) -> View {
