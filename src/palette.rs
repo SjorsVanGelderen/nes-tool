@@ -47,11 +47,8 @@ use vulkano::{
         }
     },
     sampler::Sampler,
-    swapchain::Swapchain,
     sync::NowFuture,
 };
-
-use winit::Window;
 
 type PaletteGraphicsPipeline = Arc<
     GraphicsPipeline<
@@ -76,7 +73,6 @@ pub struct Palette {
     pub surface: Surface,
     pub vertex_shader: vs::Shader,
     pub fragment_shader: fs::Shader,
-    // pub render_pass: Arc<RenderPassAbstract + Send + Sync>,
     pub pipeline: PaletteGraphicsPipeline,
     pub texture: Arc<ImmutableImage<Format>>,
     pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
@@ -87,9 +83,8 @@ impl Palette {
     pub fn new(
         device: Arc<Device>,
         queue: Arc<Queue>,
-        swapchain: Arc<Swapchain<Window>>,
+        render_pass: Arc<RenderPassAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
-        render_pass: Arc<RenderPassAbstract + Send + Sync>
     ) -> Self {
         let mut color_indices: [u8; 26] = [0; 26];
         for (i, x) in (0..26).enumerate() {
@@ -99,7 +94,6 @@ impl Palette {
         let surface = Self::get_surface(device.clone());
         let vertex_shader = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
-        // let render_pass = Self::get_render_pass(device.clone(), swapchain.clone());
         let pipeline = Self::get_pipeline(device.clone(), &vertex_shader, &fragment_shader, render_pass.clone());
 
         let (texture, tex_future) = Self::get_texture_and_future(queue.clone());
@@ -110,7 +104,6 @@ impl Palette {
             surface,
             vertex_shader,
             fragment_shader,
-            // render_pass,
             pipeline,
             texture,
             tex_future,
@@ -129,32 +122,8 @@ impl Palette {
     // }
 
     fn get_surface(device: Arc<Device>) -> Surface {
-        Surface::new(device.clone(), Vector2::new(0.0, 0.0), Vector2::new(0.0, 0.0))
+        Surface::new(device.clone(), Vector2::new(0.0, 0.0), Vector2::new(64.0, 16.0))
     }
-
-    // TODO: Investigate whether this is specific for each surface
-    // fn get_render_pass(
-    //     device: Arc<Device>,
-    //     swapchain: Arc<Swapchain<Window>>
-    // ) -> Arc<RenderPassAbstract + Send + Sync> {
-    //     Arc::new(
-    //         vulkano::single_pass_renderpass!(
-    //             device.clone(),
-    //             attachments: {
-    //                 color: {
-    //                     load: Clear,
-    //                     store: Store,
-    //                     format: swapchain.format(),
-    //                     samples: 1,
-    //                 }
-    //             },
-    //             pass: {
-    //                 color: [color],
-    //                 depth_stencil: {}
-    //             }
-    //         ).unwrap()
-    //     )
-    // }
 
     fn get_pipeline(
         device: Arc<Device>,
@@ -209,7 +178,7 @@ impl Palette {
         sampler: Arc<Sampler>
     ) -> PaletteDescriptorSet {
         Arc::new(
-            PersistentDescriptorSet::start(pipeline.clone(), 0)
+            PersistentDescriptorSet::start(pipeline.clone(), 1)
             .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
             .build().unwrap()
         )
@@ -250,7 +219,7 @@ mod fs {
 
 layout(location = 0) in vec2 uv;
 
-layout(set = 0, binding = 0) uniform sampler2D tex; 
+layout(set = 1, binding = 1) uniform sampler2D tex; 
 
 layout(location = 0) out vec4 color;
 

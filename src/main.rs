@@ -32,34 +32,38 @@ use crate::system::{
 
 use cgmath::{
     Matrix4,
-    SquareMatrix,
+    // SquareMatrix, // Needed for Matrix4::identity
     Vector2,
     Vector3,
 };
 
-use std::path::Path;
-
-use vulkano::command_buffer::{
-    AutoCommandBufferBuilder,
-    DynamicState,
+use std::{
+    path::Path,
+    sync::Arc,
 };
 
-use vulkano::sampler::{
-    Sampler,
-    SamplerAddressMode,
-    Filter,
-    MipmapMode
-};
-
-use vulkano::swapchain::{
-    AcquireError,
-    SwapchainCreationError,
-    acquire_next_image,
-};
-
-use vulkano::sync::{
-    FlushError,
-    GpuFuture,
+use vulkano::{
+    command_buffer::{
+        AutoCommandBufferBuilder,
+        DynamicState,
+    },
+    device::Device,
+    sampler::{
+        Sampler,
+        SamplerAddressMode,
+        Filter,
+        MipmapMode,
+    },
+    swapchain::{
+        AcquireError,
+        acquire_next_image,
+        SwapchainCreationError,
+    },
+    sync::{
+        FlushError,
+        GpuFuture,
+        now,
+    },
 };
 
 use winit::{
@@ -83,17 +87,7 @@ fn main() {
     let surface = system::get_surface(&events_loop, instance.clone());
     let window = surface.window();
 
-    let sampler = Sampler::new(
-        device.clone(),
-        Filter::Nearest,
-        Filter::Nearest,
-        MipmapMode::Nearest,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
-        0.0, 1.0, 0.0, 0.0
-    ).unwrap();
-
+    let sampler = get_sampler(device.clone());
     let (mut swapchain, images) = system::get_swapchain_and_images(
         surface.clone(), 
         physical, 
@@ -102,10 +96,31 @@ fn main() {
         queue.clone()
     );
 
-    let pattern_table = PatternTable::new(device.clone(), queue.clone(), swapchain.clone(), sampler.clone())
-        .load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
+    let render_pass = Arc::new(
+        vulkano::single_pass_renderpass!(
+            device.clone(),
+            attachments: {
+                color: {
+                    load: Clear,
+                    store: Store,
+                    format: swapchain.format(),
+                    samples: 1,
+                }
+            },
+            pass: {
+                color: [color],
+                depth_stencil: {}
+            }
+        ).unwrap()
+    );
+    
+    let pattern_table = PatternTable::new(
+        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
+    ).load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
 
-    let palette = Palette::new(device.clone(), queue.clone(), swapchain.clone(), sampler.clone(), pattern_table.render_pass.clone());
+    let palette = Palette::new(
+        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
+    );
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -114,9 +129,7 @@ fn main() {
     };
 
     let mut framebuffers = system::get_window_size_dependent_setup(
-        &images,
-        pattern_table.render_pass.clone(), // TODO: Investigate whether this should come from the pattern table module at all
-        &mut dynamic_state
+        &images, render_pass.clone(), &mut dynamic_state
     );
 
     let mut recreate_swapchain = false;
@@ -124,8 +137,6 @@ fn main() {
 
     let mut view = View::new(Vector2::new(1280, 720));
     let mut mouse = Mouse::new();
-
-    let mut theta = 0.0f32;
 
     loop {
         previous_frame_end.cleanup_finished();
@@ -151,7 +162,7 @@ fn main() {
 
             swapchain = new_swapchain;
             framebuffers = system::get_window_size_dependent_setup(
-                &new_images, pattern_table.render_pass.clone(), &mut dynamic_state
+                &new_images, render_pass.clone(), &mut dynamic_state
             );
             
             recreate_swapchain = false;
@@ -170,9 +181,7 @@ fn main() {
             ],
         };
 
-        theta = theta + 1.0;
-
-        let mvp = view.mvp_from_model(Matrix4::from_translation(Vector3::new(0.0, theta.sin() * 100.0, 0.0)));
+        let mvp = view.mvp_from_model(Matrix4::from_translation(Vector3::new(0.0, 0.5, 0.0)));
         let palette_push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -209,16 +218,15 @@ fn main() {
             pattern_table.surface.vertex_buffer.clone(),
             pattern_table.surface.index_buffer.clone(),
             pattern_table.descriptor_set.clone(),
-            pattern_table_push_constants // TODO: Move this to the pattern table module
+            pattern_table_push_constants
         ).unwrap()
         .draw_indexed(
             palette.pipeline.clone(),
             &dynamic_state,
             palette.surface.vertex_buffer.clone(),
             palette.surface.index_buffer.clone(),
-            // palette.descriptor_set.clone(),
-            pattern_table.descriptor_set.clone(), // TODO: Use the actual palette descriptor set
-            palette_push_constants // TODO: Move this to the palette module
+            palette.descriptor_set.clone(),
+            palette_push_constants
         ).unwrap()
         .end_render_pass().unwrap()
         .build().unwrap();
@@ -234,11 +242,11 @@ fn main() {
             },
             Err(FlushError::OutOfDate) => {
                 recreate_swapchain = true;
-                previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<_>;
+                previous_frame_end = Box::new(now(device.clone())) as Box<_>;
             },
             Err(e) => {
                 println!("{:?}", e);
-                previous_frame_end = Box::new(vulkano::sync::now(device.clone())) as Box<_>;
+                previous_frame_end = Box::new(now(device.clone())) as Box<_>;
             }
         }
 
@@ -318,4 +326,17 @@ fn main() {
             return;
         }
     }
+}
+
+fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
+    Sampler::new(
+        device.clone(),
+        Filter::Nearest,
+        Filter::Nearest,
+        MipmapMode::Nearest,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
+        0.0, 1.0, 0.0, 0.0
+    ).unwrap()
 }

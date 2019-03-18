@@ -49,11 +49,8 @@ use vulkano::{
         },
     },
     sampler::Sampler,
-    swapchain::Swapchain,
     sync::NowFuture,
 };
-
-use winit::Window;
 
 type PatternTableGraphicsPipeline = Arc<
     GraphicsPipeline<
@@ -79,7 +76,6 @@ pub struct PatternTable {
     pub surface: Surface,
     pub vertex_shader: vs::Shader,
     pub fragment_shader: fs::Shader,
-    pub render_pass: Arc<RenderPassAbstract + Send + Sync>,
     pub pipeline: PatternTableGraphicsPipeline,
     pub texture: Arc<ImmutableImage<Format>>,
     pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
@@ -89,8 +85,8 @@ pub struct PatternTable {
 impl PatternTable {
     pub fn new(
         device: Arc<Device>, 
-        queue: Arc<Queue>, 
-        swapchain: Arc<Swapchain<Window>>, 
+        queue: Arc<Queue>,
+        render_pass: Arc<RenderPassAbstract + Send + Sync>,
         sampler: Arc<Sampler>
     ) -> Self {
         let bytes = [0; 8192];
@@ -98,7 +94,6 @@ impl PatternTable {
         let surface = Self::get_surface(device.clone());
         let vertex_shader = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
-        let render_pass = Self::get_render_pass(device.clone(), swapchain.clone());
         let pipeline = Self::get_pipeline(device.clone(), &vertex_shader, &fragment_shader, render_pass.clone());
 
         // Arguably redundant
@@ -111,7 +106,6 @@ impl PatternTable {
             surface,
             vertex_shader,
             fragment_shader,
-            render_pass,
             pipeline,
             texture,
             tex_future,
@@ -140,30 +134,6 @@ impl PatternTable {
 
     fn get_surface(device: Arc<Device>) -> Surface {
         Surface::new(device.clone(), Vector2::new(0.0, 0.0), Vector2::new(200.0, 100.0))
-    }
-
-    // TODO: Investigate whether this is specific for each surface
-    fn get_render_pass(
-        device: Arc<Device>,
-        swapchain: Arc<Swapchain<Window>>
-    ) -> Arc<RenderPassAbstract + Send + Sync> {
-        Arc::new(
-            vulkano::single_pass_renderpass!(
-                device.clone(),
-                attachments: {
-                    color: {
-                        load: Clear,
-                        store: Store,
-                        format: swapchain.format(),
-                        samples: 1,
-                    }
-                },
-                pass: {
-                    color: [color],
-                    depth_stencil: {}
-                }
-            ).unwrap()
-        )
     }
 
     fn get_pipeline(

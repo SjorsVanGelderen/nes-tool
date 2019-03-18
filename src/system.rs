@@ -47,6 +47,7 @@ use vulkano_win::{
 };
 
 use winit::{
+    dpi::LogicalSize,
     EventsLoop,
     Window,
     WindowBuilder,
@@ -170,6 +171,7 @@ pub fn get_device_and_queues(physical: PhysicalDevice, extensions: DeviceExtensi
 pub fn get_surface(events_loop: &EventsLoop, instance: Arc<Instance>) -> Arc<Surface<Window>> {
     WindowBuilder::new()
         .with_title("NES tool")
+        .with_dimensions(LogicalSize::new(1280.0, 720.0))
         .build_vk_surface(&events_loop, instance)
         .unwrap()
 }
