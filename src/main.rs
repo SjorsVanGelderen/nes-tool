@@ -186,7 +186,7 @@ fn main() {
             ],
         };
 
-        let mvp = view.mvp_from_model(Matrix4::from_translation(palette.surface.position));
+        let mvp = view.mvp_from_model(Matrix4::from_translation(Vector3::new(0.0, 0.7, 0.0) /*palette.surface.position*/));
         let palette_push_constants = palette::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
