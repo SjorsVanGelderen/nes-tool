@@ -1,11 +1,11 @@
 // Copyright 2019, Sjors van Gelderen
 
 use cgmath::{
-    Vector2,
-    Vector3,
     Matrix4,
     Point3,
     SquareMatrix,
+    Vector2,
+    Vector3,
 };
 
 use vulkano::{
@@ -47,6 +47,7 @@ use vulkano_win::{
 };
 
 use winit::{
+    dpi::LogicalSize,
     EventsLoop,
     Window,
     WindowBuilder,
@@ -89,6 +90,10 @@ impl View {
 
     pub fn mvp(&self) -> Matrix4<f32> {
         self.model * self.view * self.projection
+    }
+
+    pub fn mvp_from_model(&self, model: Matrix4<f32>) -> Matrix4<f32> {
+        model * self.view * self.projection
     }
 
     pub fn update_model(&self, model: Matrix4<f32>) -> View {
@@ -166,6 +171,7 @@ pub fn get_device_and_queues(physical: PhysicalDevice, extensions: DeviceExtensi
 pub fn get_surface(events_loop: &EventsLoop, instance: Arc<Instance>) -> Arc<Surface<Window>> {
     WindowBuilder::new()
         .with_title("NES tool")
+        .with_dimensions(LogicalSize::new(1280.0, 720.0))
         .build_vk_surface(&events_loop, instance)
         .unwrap()
 }
