@@ -49,10 +49,10 @@ use vulkano::{
     },
     device::Device,
     sampler::{
-        Sampler,
-        SamplerAddressMode,
         Filter,
         MipmapMode,
+        Sampler,
+        SamplerAddressMode,
     },
     swapchain::{
         AcquireError,
@@ -133,7 +133,11 @@ fn main() {
     );
 
     let mut recreate_swapchain = false;
-    let mut previous_frame_end = Box::new(pattern_table.tex_future) as Box<GpuFuture>;
+
+    let mut previous_frame_end = Box::new(
+        pattern_table.tex_future
+            .join(palette.tex_future)
+    ) as Box<GpuFuture>;
 
     let mut view = View::new(Vector2::new(1280, 720));
     let mut mouse = Mouse::new();
@@ -168,9 +172,10 @@ fn main() {
             recreate_swapchain = false;
         }
 
-
         // TODO: Figure out a way to make the shader data private and get it here in a different way
         // TODO: Figure out a better way to supply a mat4 as a push constant
+        // TODO: Figure out how to translate correctly with the mvp
+
         let mvp = view.mvp();
         let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
@@ -181,8 +186,8 @@ fn main() {
             ],
         };
 
-        let mvp = view.mvp_from_model(Matrix4::from_translation(Vector3::new(0.0, 0.5, 0.0)));
-        let palette_push_constants = pattern_table::vs::ty::Matrices {
+        let mvp = view.mvp_from_model(Matrix4::from_translation(palette.surface.position));
+        let palette_push_constants = palette::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
@@ -268,6 +273,7 @@ fn main() {
                 } => {
                     mouse.position = Vector2::new(position.x as f32, position.y as f32);
 
+                    // TODO: Fix dragging logic
                     if mouse.dragging {
                         view = view.update_model(
                             Matrix4::from_translation(

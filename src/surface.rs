@@ -1,6 +1,9 @@
 // Copyright 2019, Sjors van Gelderen
 
-use cgmath::Vector2;
+use cgmath::{
+    Vector2,
+    Vector3,
+};
 
 use crate::vertex::Vertex;
 
@@ -17,19 +20,18 @@ use std::sync::Arc;
 pub struct Surface {
     pub vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
     pub index_buffer: Arc<CpuAccessibleBuffer<[u32]>>,
+    pub position: Vector3<f32>,
 }
 
 impl Surface {
-    pub fn new(device: Arc<Device>, position: Vector2<f32>, dimensions: Vector2<f32>) -> Self {
-        let p = position;
+    pub fn new(device: Arc<Device>, dimensions: Vector2<f32>) -> Self {
         let d = dimensions;
 
-        // TODO: Consider the Vulkan coordinate system
         let positions: [[f32; 3]; 4] = [
-            [ p.x / 2.0 - d.x / 2.0, p.y / 2.0 + d.y / 2.0, 1.0],
-            [ p.x / 2.0 - d.x / 2.0, p.y / 2.0 - d.y / 2.0, 1.0],
-            [ p.x / 2.0 + d.x / 2.0, p.y / 2.0 - d.y / 2.0, 1.0],
-            [ p.x / 2.0 + d.x / 2.0, p.y / 2.0 + d.y / 2.0, 1.0],
+            [ -d.x / 2.0,  d.y / 2.0, 1.0],
+            [ -d.x / 2.0, -d.y / 2.0, 1.0],
+            [  d.x / 2.0, -d.y / 2.0, 1.0],
+            [  d.x / 2.0,  d.y / 2.0, 1.0],
         ];
 
         let uvs: [[f32; 2]; 4] = [
@@ -47,10 +49,19 @@ impl Surface {
 
         let vertex_buffer = Self::get_vertex_buffer(device.clone(), vertices);
         let index_buffer = Self::get_index_buffer(device.clone(), indices);
+        let position = Vector3::new(0.0, 0.0, 0.0);
 
         Self {
             vertex_buffer,
             index_buffer,
+            position,
+        }
+    }
+
+    pub fn set_position(self, position: Vector3<f32>) -> Self {
+        Self {
+            position,
+            ..self
         }
     }
 
