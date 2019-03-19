@@ -4,5 +4,5 @@ Uses `vulkano`.
 
 ![Screenshot of the current progress](screenshot.PNG)
 
-To build this application, install the Rust toolchain via https://rustup.rs/ .
+To build this application, install the `Rust` toolchain via https://rustup.rs/ .
 After that, use the command: `cargo run` in the project root directory.
