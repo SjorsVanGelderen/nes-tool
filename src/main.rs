@@ -32,7 +32,7 @@ use crate::system::{
 
 use cgmath::{
     Matrix4,
-    // SquareMatrix, // Needed for Matrix4::identity
+    SquareMatrix,
     Vector2,
     Vector3,
 };
@@ -142,6 +142,8 @@ fn main() {
     let mut view = View::new(Vector2::new(1280, 720));
     let mut mouse = Mouse::new();
 
+    view.update_projection();
+
     loop {
         previous_frame_end.cleanup_finished();
 
@@ -176,7 +178,7 @@ fn main() {
         // TODO: Figure out a better way to supply a mat4 as a push constant
         // TODO: Figure out how to translate correctly with the mvp
 
-        let mvp = view.mvp();
+        let mvp = view.mvp(Matrix4::identity());
         let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -186,7 +188,8 @@ fn main() {
             ],
         };
 
-        let mvp = view.mvp_from_model(Matrix4::from_translation(Vector3::new(0.0, 0.7, 0.0) /*palette.surface.position*/));
+        // There's a problem with translation here. The dimensions of the orthographic projection are not respected
+        let mvp = view.mvp(Matrix4::from_translation(Vector3::new(0.0, 0.7, 0.0) /*palette.surface.position*/));
         let palette_push_constants = palette::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -273,20 +276,20 @@ fn main() {
                 } => {
                     mouse.position = Vector2::new(position.x as f32, position.y as f32);
 
-                    // TODO: Fix dragging logic
-                    if mouse.dragging {
-                        view = view.update_model(
-                            Matrix4::from_translation(
-                                Vector3::new(
-                                    (mouse.position.x - view.dimensions.x as f32 / 2.0) / 1000.0,
-                                    (mouse.position.y - view.dimensions.y as f32 / 2.0) / 1000.0, 
-                                    0.0
-                                )
-                            )
-                        );
+                    // TODO: Fix dragging logic... by the way this updates the VIEW, not the model. Fix that too
+                    // if mouse.dragging {
+                    //     view = view.update_model(
+                    //         Matrix4::from_translation(
+                    //             Vector3::new(
+                    //                 (mouse.position.x - view.dimensions.x as f32 / 2.0) / 1000.0,
+                    //                 (mouse.position.y - view.dimensions.y as f32 / 2.0) / 1000.0, 
+                    //                 0.0
+                    //             )
+                    //         )
+                    //     );
 
-                        view = view.update_projection();
-                    }
+                    //     view = view.update_projection();
+                    // }
                 },
                 Event::WindowEvent {
                     event: WindowEvent::MouseInput { state, button, .. },

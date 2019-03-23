@@ -3,7 +3,7 @@
 use cgmath::{
     Matrix4,
     Point3,
-    SquareMatrix,
+    // SquareMatrix,
     Vector2,
     Vector3,
 };
@@ -55,17 +55,15 @@ use winit::{
 
 use std::sync::Arc;
 
+#[derive(Clone, Copy)]
 pub struct View {
     pub dimensions: Vector2<u32>,
-    pub model: Matrix4<f32>,
     pub view: Matrix4<f32>,
     pub projection: Matrix4<f32>,
 }
 
 impl View {
     pub fn new(dimensions: Vector2<u32>) -> Self {
-        let model = Matrix4::identity();
-
         let view = Matrix4::look_at(
             Point3::new(0.0, 0.0, -1.0),
             Point3::new(0.0, 0.0, 0.0),
@@ -75,46 +73,36 @@ impl View {
         let aspect = dimensions.x as f32 / dimensions.y as f32;
 
         let projection = cgmath::ortho(
-            -100.0 * aspect, 100.0 * aspect,
-            -100.0, 100.0,
+            -50.0 * aspect, 50.0 * aspect,
+            -50.0, 50.0,
             0.01, 100.0
         );
 
         Self {
             dimensions,
-            model,
             view,
             projection,
         }
     }
 
-    pub fn mvp(&self) -> Matrix4<f32> {
-        self.model * self.view * self.projection
-    }
-
-    pub fn mvp_from_model(&self, model: Matrix4<f32>) -> Matrix4<f32> {
+    pub fn mvp(&self, model: Matrix4<f32>) -> Matrix4<f32> {
         model * self.view * self.projection
     }
 
-    pub fn update_model(&self, model: Matrix4<f32>) -> View {
-        View {
-            model,
-            ..*self
-        }
-    }
-
-    pub fn update_projection(&self) -> View {
+    pub fn update_projection(self) -> Self {
         let aspect = self.dimensions.x as f32 / self.dimensions.y as f32;
 
+        // Doesn't seem to work as expected...
+        // Problem with the surface???
         let projection = cgmath::ortho(
-            -100.0 * aspect, 100.0 * aspect,
-            -100.0, 100.0,
-            0.01, 100.0
+            -50.0 * aspect, 50.0 * aspect,
+            -50.0, 50.0,
+            0.01, 50.0
         );
 
-        View {
+        Self {
             projection,
-            ..*self
+            ..self
         }
     }
 }
@@ -126,8 +114,8 @@ pub struct Mouse {
 }
 
 impl Mouse {
-    pub fn new() -> Mouse {
-        Mouse {
+    pub fn new() -> Self {
+        Self {
             position: Vector2::new(0.0, 0.0),
             dragging: false,
             drag_start: Vector2::new(0.0, 0.0),
