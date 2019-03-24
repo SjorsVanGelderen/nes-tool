@@ -176,9 +176,10 @@ fn main() {
 
         // TODO: Figure out a way to make the shader data private and get it here in a different way
         // TODO: Figure out a better way to supply a mat4 as a push constant
-        // TODO: Figure out how to translate correctly with the mvp
+        // let mvp = view.mvp(Matrix4::identity());
 
-        let mvp = view.mvp(Matrix4::identity());
+        let mvp = view.mvp(Matrix4::from_translation(Vector3::new(0.0, 30.0, 0.0)));
+
         let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -188,8 +189,6 @@ fn main() {
             ],
         };
 
-        // There's a problem with translation here. The dimensions of the orthographic projection are not respected
-        let mvp = view.mvp(Matrix4::from_translation(Vector3::new(0.0, 0.7, 0.0) /*palette.surface.position*/));
         let palette_push_constants = palette::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],

@@ -73,9 +73,9 @@ impl View {
         let aspect = dimensions.x as f32 / dimensions.y as f32;
 
         let projection = cgmath::ortho(
-            -50.0 * aspect, 50.0 * aspect,
-            -50.0, 50.0,
-            0.01, 100.0
+            -100.0 * aspect, 100.0 * aspect,
+            -100.0, 100.0,
+            -100.0, 100.0
         );
 
         Self {
@@ -86,14 +86,12 @@ impl View {
     }
 
     pub fn mvp(&self, model: Matrix4<f32>) -> Matrix4<f32> {
-        model * self.view * self.projection
+        self.projection * self.view * model
     }
 
     pub fn update_projection(self) -> Self {
         let aspect = self.dimensions.x as f32 / self.dimensions.y as f32;
 
-        // Doesn't seem to work as expected...
-        // Problem with the surface???
         let projection = cgmath::ortho(
             -50.0 * aspect, 50.0 * aspect,
             -50.0, 50.0,
