@@ -31,6 +31,7 @@ use crate::system::{
 use cgmath::{
     Matrix4,
     Vector2,
+    Vector3,
 };
 
 use std::{
@@ -109,18 +110,18 @@ fn main() {
             }
         ).unwrap()
     );
+
+    let palette = Palette::new(
+        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
+    ).set_position(Vector3::new(-80.0, -80.0, 0.0));
+
+    let samples = Samples::new(
+        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
+    ).set_position(Vector3::new(80.0, -80.0, 0.0));
     
     let pattern_table = PatternTable::new(
         device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
     ).load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
-
-    let palette = Palette::new(
-        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    );
-
-    let samples = Samples::new(
-        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    );
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -174,7 +175,7 @@ fn main() {
             recreate_swapchain = false;
         }
 
-        // TODO: Figure out a way to make the shader data private and get it here in a different way
+        // TODO: Move the logic below to the correct modules
         // TODO: Figure out a better way to supply a mat4 as a push constant
         let pattern_table_mouse = get_mouse_position_on_surface(
             mouse.position,
@@ -248,6 +249,7 @@ fn main() {
 
         let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
 
+        // TODO: Investigate getting the parts of the builder from their respective modules
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             device.clone(),
             queue.family()
@@ -376,6 +378,7 @@ fn main() {
     }
 }
 
+// TODO: Move to system module
 fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
     Sampler::new(
         device.clone(),
@@ -389,6 +392,7 @@ fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
     ).unwrap()
 }
 
+// TODO: Move to system module
 fn get_mouse_position_on_surface(
     mouse_position: Vector2<f32>,
     surface_position: Vector2<f32>,

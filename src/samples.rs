@@ -115,6 +115,18 @@ impl Samples {
         }
     }
 
+    pub fn set_position(self, position: Vector3<f32>) -> Self {
+        let surface = Surface {
+            position,
+            ..self.surface
+        };
+
+        Self {
+            surface,            
+            ..self
+        }
+    }
+
     // pub fn set_color_index(self, which: usize, to_color_index: u8) -> Self {
     //     let mut color_indices = self.color_indices;
     //     color_indices[which] = to_color_index;

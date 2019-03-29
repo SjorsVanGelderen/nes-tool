@@ -107,6 +107,18 @@ impl Palette {
         }
     }
 
+    pub fn set_position(self, position: Vector3<f32>) -> Self {
+        let surface = Surface {
+            position,
+            ..self.surface
+        };
+
+        Self {
+            surface,
+            ..self
+        }
+    }
+
     fn get_surface(device: Arc<Device>) -> Surface {
         Surface::new(device.clone(), Vector3::new(0.0, 0.0, 1.0), Vector2::new(64.0, 16.0))
     }

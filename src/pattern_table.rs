@@ -87,7 +87,7 @@ pub struct PatternTable {
 
 impl PatternTable {
     pub fn new(
-        device: Arc<Device>, 
+        device: Arc<Device>,
         queue: Arc<Queue>,
         render_pass: Arc<RenderPassAbstract + Send + Sync>,
         sampler: Arc<Sampler>
