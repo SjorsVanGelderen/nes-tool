@@ -1,6 +1,9 @@
 // Copyright 2019, Sjors van Gelderen
 
-use cgmath::Vector2;
+use cgmath::{
+    Vector2,
+    Vector3,
+};
 
 use crate::media;
 use crate::surface::Surface;
@@ -132,8 +135,15 @@ impl PatternTable {
         }
     }
 
+    // pub fn set_surface(self, surface: Surface) {
+    //     Self {
+    //         surface,
+    //         ..self
+    //     }
+    // }
+
     fn get_surface(device: Arc<Device>) -> Surface {
-        Surface::new(device.clone(), Vector2::new(200.0, 100.0))
+        Surface::new(device.clone(), Vector3::new(0.0, 0.0, 1.0), Vector2::new(200.0, 100.0))
     }
 
     fn get_pipeline(

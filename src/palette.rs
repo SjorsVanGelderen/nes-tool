@@ -1,6 +1,9 @@
 // Copyright 2019, Sjors van Gelderen
 
-use cgmath::Vector2;
+use cgmath::{
+    Vector2,
+    Vector3,
+};
 
 use crate::surface::Surface;
 use crate::vertex::Vertex;
@@ -122,7 +125,7 @@ impl Palette {
     // }
 
     fn get_surface(device: Arc<Device>) -> Surface {
-        Surface::new(device.clone(), Vector2::new(64.0, 16.0))
+        Surface::new(device.clone(), Vector3::new(0.0, -30.0, 0.0), Vector2::new(64.0, 16.0))
     }
 
     fn get_pipeline(
@@ -191,10 +194,10 @@ layout(location = 0) out vec2 uv_out;
 layout(location = 1) out vec2 mouse_out;
 
 void main() {
-    gl_Position = ubo.mvp * vec4(position, 1.0);
+    gl_Position = ubo.mvp * vec4(position, 1);
 
     uv_out = uv;
-    mouse_out = ubo.mouse;
+    mouse_out = mouse;
 }
 "
     }
@@ -215,19 +218,7 @@ layout(set = 0, binding = 0) uniform sampler2D tex;
 layout(location = 0) out vec4 color;
 
 void main() {
-    color = mouse.xxxx;
-
-    // TODO: Fix this wonky logic
-    vec2 coord = vec2(mouse.x / 4.0, mouse.y / 16.0);
-
-    if(abs(uv.x - mouse.x) < 0.09375 && abs(uv.y - mouse.y) < 0.375)
-    {
-        color = vec4(texture(tex, coord).xyz, 1.0);
-    }
-    else
-    {
-        color = vec4(texture(tex, uv).xyz, 1.0);
-    }
+    color = vec4(texture(tex, uv).xyz, mouse.x); //1.0);
 }
 "
     }
