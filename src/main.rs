@@ -19,12 +19,9 @@ mod system;
 mod tool;
 mod vertex;
 
-// use crate::attribute_table::AttributeTable;
 use crate::palette::Palette;
 use crate::pattern_table::PatternTable;
-// use crate::nametable::Nametable;
-// use crate::samples::Samples;
-// use crate::surface::Surface;
+use crate::samples::Samples;
 
 use crate::system::{
     Mouse,
@@ -33,9 +30,7 @@ use crate::system::{
 
 use cgmath::{
     Matrix4,
-    SquareMatrix,
     Vector2,
-    Vector3,
 };
 
 use std::{
@@ -123,6 +118,10 @@ fn main() {
         device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
     );
 
+    let samples = Samples::new(
+        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
+    );
+
     let mut dynamic_state = DynamicState {
         line_width: None, 
         viewports: None, 
@@ -138,6 +137,7 @@ fn main() {
     let mut previous_frame_end = Box::new(
         pattern_table.tex_future
             .join(palette.tex_future)
+            .join(samples.tex_future)
     ) as Box<GpuFuture>;
 
     let mut view = View::new(Vector2::new(1600, 900));
@@ -176,17 +176,26 @@ fn main() {
 
         // TODO: Figure out a way to make the shader data private and get it here in a different way
         // TODO: Figure out a better way to supply a mat4 as a push constant
+        let pattern_table_mouse = get_mouse_position_on_surface(
+            mouse.position,
+            Vector2::new(
+                pattern_table.surface.position.x,
+                pattern_table.surface.position.y
+            ),
+            pattern_table.surface.dimensions
+        );
+
         let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position));
-        let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
+        let pattern_table_push_constants = pattern_table::vs::ty::UBO {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
                 [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
+            mouse: [ pattern_table_mouse.x, pattern_table_mouse.y ],
         };
 
-        let mvp = view.mvp(Matrix4::from_translation(palette.surface.position));
         let palette_mouse = get_mouse_position_on_surface(
             mouse.position,
             Vector2::new(
@@ -196,6 +205,7 @@ fn main() {
             palette.surface.dimensions
         );
 
+        let mvp = view.mvp(Matrix4::from_translation(palette.surface.position));
         let palette_push_constants = palette::vs::ty::UBO {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -204,6 +214,26 @@ fn main() {
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
             mouse: [ palette_mouse.x, palette_mouse.y ],
+        };
+
+        let samples_mouse = get_mouse_position_on_surface(
+            mouse.position,
+            Vector2::new(
+                samples.surface.position.x,
+                samples.surface.position.y
+            ),
+            samples.surface.dimensions
+        );
+
+        let mvp = view.mvp(Matrix4::from_translation(samples.surface.position));
+        let samples_push_constants = samples::vs::ty::UBO {
+            mvp: [
+                [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
+                [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
+                [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
+                [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
+            ],
+            mouse: [ samples_mouse.x, samples_mouse.y ],
         };
 
         let (image_number, acquire_future) =
@@ -242,6 +272,14 @@ fn main() {
             palette.surface.index_buffer.clone(),
             palette.descriptor_set.clone(),
             palette_push_constants
+        ).unwrap()
+        .draw_indexed(
+            samples.pipeline.clone(),
+            &dynamic_state,
+            samples.surface.vertex_buffer.clone(),
+            samples.surface.index_buffer.clone(),
+            samples.descriptor_set.clone(),
+            samples_push_constants
         ).unwrap()
         .end_render_pass().unwrap()
         .build().unwrap();
@@ -359,8 +397,6 @@ fn get_mouse_position_on_surface(
     let mp = Vector2::new(mouse_position.x, -mouse_position.y);
     let sp = surface_position;
     let sd = Vector2::new(surface_dimensions.x, surface_dimensions.y);
-
-    println!("{:?}", mp);
 
     if (mp.x - sp.x).abs() < sd.x / 2.0
     && (mp.y - sp.y).abs() < sd.y / 2.0 {

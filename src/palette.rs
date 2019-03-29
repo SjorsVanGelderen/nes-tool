@@ -72,7 +72,6 @@ type PaletteDescriptorSet = Arc<
 >;
 
 pub struct Palette {
-    pub color_indices: [u8; 26],
     pub surface: Surface,
     pub vertex_shader: vs::Shader,
     pub fragment_shader: fs::Shader,
@@ -89,11 +88,6 @@ impl Palette {
         render_pass: Arc<RenderPassAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
     ) -> Self {
-        let mut color_indices: [u8; 26] = [0; 26];
-        for (i, x) in (0..26).enumerate() {
-            color_indices[i] = x;
-        }
-
         let surface = Self::get_surface(device.clone());
         let vertex_shader = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
@@ -103,7 +97,6 @@ impl Palette {
         let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
-            color_indices,
             surface,
             vertex_shader,
             fragment_shader,
@@ -113,16 +106,6 @@ impl Palette {
             descriptor_set,
         }
     }
-
-    // pub fn set_color_index(self, which: usize, to_color_index: u8) -> Self {
-    //     let mut color_indices = self.color_indices;
-    //     color_indices[which] = to_color_index;
-
-    //     Self {
-    //         color_indices,
-    //         ..self
-    //     }
-    // }
 
     fn get_surface(device: Arc<Device>) -> Surface {
         Surface::new(device.clone(), Vector3::new(0.0, 0.0, 1.0), Vector2::new(64.0, 16.0))
@@ -217,8 +200,8 @@ layout(set = 0, binding = 0) uniform sampler2D tex;
 
 layout(location = 0) out vec4 color;
 
-vec2 palette_size = vec2(16.0, 4.0);
-vec2 color_square_size = vec2(1.0 / palette_size.x, 1.0 / palette_size.y);
+vec2 total_size = vec2(16.0, 4.0);
+vec2 color_square_size = vec2(1.0 / total_size.x, 1.0 / total_size.y);
 
 vec2 color_center = vec2(
     floor(mouse.x / color_square_size.x) * color_square_size.x + color_square_size.x / 2.0,
