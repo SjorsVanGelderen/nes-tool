@@ -182,16 +182,19 @@ pub mod vs {
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
 
-layout(push_constant) uniform Matrices {
+layout(push_constant) uniform UBO {
     mat4 mvp;
-} matrices;
+    vec2 mouse;
+} ubo;
 
 layout(location = 0) out vec2 uv_out;
+layout(location = 1) out vec2 mouse_out;
 
 void main() {
-    gl_Position = matrices.mvp * vec4(position, 1);
+    gl_Position = ubo.mvp * vec4(position, 1.0);
 
     uv_out = uv;
+    mouse_out = ubo.mouse;
 }
 "
     }
@@ -205,13 +208,26 @@ pub mod fs {
 #version 450
 
 layout(location = 0) in vec2 uv;
+layout(location = 1) in vec2 mouse;
 
 layout(set = 0, binding = 0) uniform sampler2D tex;
 
 layout(location = 0) out vec4 color;
 
 void main() {
-    color = vec4(texture(tex, uv).xyz, 1.0);
+    color = mouse.xxxx;
+
+    // TODO: Fix this wonky logic
+    vec2 coord = vec2(mouse.x / 4.0, mouse.y / 16.0);
+
+    if(abs(uv.x - mouse.x) < 0.09375 && abs(uv.y - mouse.y) < 0.375)
+    {
+        color = vec4(texture(tex, coord).xyz, 1.0);
+    }
+    else
+    {
+        color = vec4(texture(tex, uv).xyz, 1.0);
+    }
 }
 "
     }

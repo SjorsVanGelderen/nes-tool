@@ -21,6 +21,7 @@ pub struct Surface {
     pub vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
     pub index_buffer: Arc<CpuAccessibleBuffer<[u32]>>,
     pub position: Vector3<f32>,
+    pub dimensions: Vector2<f32>,
 }
 
 impl Surface {
@@ -49,12 +50,13 @@ impl Surface {
 
         let vertex_buffer = Self::get_vertex_buffer(device.clone(), vertices);
         let index_buffer = Self::get_index_buffer(device.clone(), indices);
-        let position = Vector3::new(0.0, 16.0, 0.0);
+        let position = Vector3::new(0.0, 0.0, 0.0);
 
         Self {
             vertex_buffer,
             index_buffer,
             position,
+            dimensions,
         }
     }
 

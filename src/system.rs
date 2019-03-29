@@ -57,31 +57,35 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy)]
 pub struct View {
-    pub dimensions: Vector2<u32>,
+    pub window_dimensions: Vector2<u32>,
     pub view: Matrix4<f32>,
     pub projection: Matrix4<f32>,
+    pub projection_dimensions: Vector2<f32>,
 }
 
 impl View {
-    pub fn new(dimensions: Vector2<u32>) -> Self {
+    pub fn new(window_dimensions: Vector2<u32>) -> Self {
         let view = Matrix4::look_at(
             Point3::new(0.0, 0.0, -1.0),
             Point3::new(0.0, 0.0, 0.0),
             Vector3::new(0.0, -1.0, 0.0)
         );
 
-        let aspect = dimensions.x as f32 / dimensions.y as f32;
+        let aspect = window_dimensions.x as f32 / window_dimensions.y as f32;
+        let projection_dimensions = Vector2::new(200.0, 200.0);
+        let pd = projection_dimensions;
 
         let projection = cgmath::ortho(
-            -100.0 * aspect, 100.0 * aspect,
-            -100.0, 100.0,
+            -(pd.x / 2.0) * aspect, pd.x / 2.0 * aspect,
+            -(pd.y / 2.0), pd.y / 2.0,
             -100.0, 100.0
         );
 
         Self {
-            dimensions,
+            window_dimensions,
             view,
             projection,
+            projection_dimensions,
         }
     }
 
@@ -90,7 +94,7 @@ impl View {
     }
 
     pub fn update_projection(self) -> Self {
-        let aspect = self.dimensions.x as f32 / self.dimensions.y as f32;
+        let aspect = self.window_dimensions.x as f32 / self.window_dimensions.y as f32;
 
         let projection = cgmath::ortho(
             -50.0 * aspect, 50.0 * aspect,
