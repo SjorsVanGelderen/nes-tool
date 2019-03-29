@@ -143,7 +143,7 @@ impl PatternTable {
     // }
 
     fn get_surface(device: Arc<Device>) -> Surface {
-        Surface::new(device.clone(), Vector3::new(0.0, 0.0, 1.0), Vector2::new(200.0, 100.0))
+        Surface::new(device.clone(), Vector3::new(0.0, 0.0, 3.0), Vector2::new(200.0, 100.0))
     }
 
     fn get_pipeline(

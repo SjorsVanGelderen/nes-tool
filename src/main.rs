@@ -24,6 +24,7 @@ use crate::palette::Palette;
 use crate::pattern_table::PatternTable;
 // use crate::nametable::Nametable;
 // use crate::samples::Samples;
+// use crate::surface::Surface;
 
 use crate::system::{
     Mouse,
@@ -144,6 +145,8 @@ fn main() {
 
     view.update_projection();
 
+    let mut theta: f32 = 0.0;
+
     loop {
         previous_frame_end.cleanup_finished();
 
@@ -163,7 +166,7 @@ fn main() {
                 match swapchain.recreate_with_dimension(dimensions) {
                     Ok(r) => r,
                     Err(SwapchainCreationError::UnsupportedDimensions) => continue,
-                    Err(err) => panic!("{:?}", err)
+                    Err(e) => panic!("{:?}", e)
                 };
 
             swapchain = new_swapchain;
@@ -174,10 +177,14 @@ fn main() {
             recreate_swapchain = false;
         }
 
-
         // TODO: Figure out a way to make the shader data private and get it here in a different way
         // TODO: Figure out a better way to supply a mat4 as a push constant
-        let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position));
+        // let mvp = view.mvp(Matrix4::identity());
+
+        theta = theta + 0.1;
+
+        let mvp = view.mvp(Matrix4::from_translation(Vector3::new(20.0 * theta.cos(), 10.0 * theta.sin(), 0.0)));
+
         let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -187,7 +194,15 @@ fn main() {
             ],
         };
 
-        let mvp = view.mvp(Matrix4::from_translation(palette.surface.position));
+        let palette_mouse = get_mouse_position_on_surface(
+            mouse.position,
+            Vector2::new(
+                palette.surface.position.x,
+                palette.surface.position.y
+            ),
+            palette.surface.dimensions
+        );
+
         let palette_push_constants = palette::vs::ty::UBO {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -195,7 +210,7 @@ fn main() {
                 [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
-            mouse: [ mouse.position.x, mouse.position.y ],
+            mouse: [ palette_mouse.x, palette_mouse.y ] //[ mouse.position.x, mouse.position.y ],
         };
 
         let (image_number, acquire_future) =
@@ -205,7 +220,7 @@ fn main() {
                     recreate_swapchain = true;
                     continue;
                 },
-                Err(err) => panic!("{:?}", err)
+                Err(e) => panic!("{:?}", e)
             };
 
         let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
@@ -273,22 +288,15 @@ fn main() {
                     event: WindowEvent::CursorMoved { position, .. },
                     ..
                 } => {
-                    mouse.position = Vector2::new(position.x as f32, position.y as f32);
+                    let mp = Vector2::new(position.x as f32, position.y as f32);
+                    let wd = Vector2::new(view.window_dimensions.x as f32, view.window_dimensions.y as f32);
+                    let pd = view.projection_dimensions;
+                    let aspect = wd.x / wd.y;
 
-                    // TODO: Fix dragging logic... by the way this updates the VIEW, not the model. Fix that too
-                    // if mouse.dragging {
-                    //     view = view.update_model(
-                    //         Matrix4::from_translation(
-                    //             Vector3::new(
-                    //                 (mouse.position.x - view.dimensions.x as f32 / 2.0) / 1000.0,
-                    //                 (mouse.position.y - view.dimensions.y as f32 / 2.0) / 1000.0, 
-                    //                 0.0
-                    //             )
-                    //         )
-                    //     );
-
-                    //     view = view.update_projection();
-                    // }
+                    mouse.position = Vector2::new(
+                        (mp.x / wd.x * 2.0 * pd.x - pd.x / 2.0) * aspect,
+                        mp.y / wd.y * 2.0 * pd.y - pd.y / 2.0
+                    );
                 },
                 Event::WindowEvent {
                     event: WindowEvent::MouseInput { state, button, .. },
@@ -347,4 +355,26 @@ fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
         SamplerAddressMode::ClampToEdge,
         0.0, 1.0, 0.0, 0.0
     ).unwrap()
+}
+
+fn get_mouse_position_on_surface(
+    mouse_position: Vector2<f32>,
+    surface_position: Vector2<f32>,
+    surface_dimensions: Vector2<f32>,
+) -> Vector2<f32> {
+    let mp = Vector2::new(mouse_position.x, -mouse_position.y);
+    let sp = surface_position;
+    let sd = Vector2::new(surface_dimensions.x, surface_dimensions.y);
+
+    if (mp.x - sp.x).abs() < sd.x / 2.0
+    && (mp.y - sp.y).abs() < sd.y / 2.0 {
+        let x = (mp.x - (sp.x - sd.x / 2.0)).abs() / surface_dimensions.x;
+        let y = (mp.y - (sp.y - sd.y / 2.0)).abs() / surface_dimensions.y;
+
+        Vector2::new(x, 1.0 - y)
+    }
+    else {
+        // Not on the surface
+        Vector2::new(-1.0, -1.0)
+    }
 }

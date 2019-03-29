@@ -21,6 +21,7 @@ pub struct Surface {
     pub vertex_buffer: Arc<CpuAccessibleBuffer<[Vertex]>>,
     pub index_buffer: Arc<CpuAccessibleBuffer<[u32]>>,
     pub position: Vector3<f32>,
+    pub dimensions: Vector2<f32>,
 }
 
 impl Surface {
@@ -54,15 +55,16 @@ impl Surface {
             vertex_buffer,
             index_buffer,
             position,
+            dimensions,
         }
     }
 
-    pub fn set_position(self, position: Vector3<f32>) -> Self {
-        Self {
-            position,
-            ..self
-        }
-    }
+    // pub fn set_position(self, position: Vector3<f32>) -> Self {
+    //     Self {
+    //         position,
+    //         ..self
+    //     }
+    // }
 
     // TODO: Find alternative to CpuAccessibleBuffer as it will be deprecated
     fn get_vertex_buffer(device: Arc<Device>, vertices: Vec<Vertex>) -> Arc<CpuAccessibleBuffer<[Vertex]>> {
