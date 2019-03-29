@@ -61,6 +61,7 @@ pub struct View {
     pub view: Matrix4<f32>,
     pub projection: Matrix4<f32>,
     pub projection_dimensions: Vector2<f32>,
+    pub zoom: f32,
 }
 
 impl View {
@@ -81,11 +82,14 @@ impl View {
             -100.0, 100.0
         );
 
+        let zoom = 1.0;
+
         Self {
             window_dimensions,
             view,
             projection,
             projection_dimensions,
+            zoom,
         }
     }
 
@@ -104,6 +108,27 @@ impl View {
 
         Self {
             projection,
+            ..self
+        }
+    }
+
+    pub fn zoom(self, delta: f32) -> Self {
+        let zoom = {
+            let candidate = self.zoom + delta;
+
+            if candidate < 1.0 {
+                1.0
+            }
+            else if candidate > 4.0 {
+                4.0
+            }
+            else {
+                candidate
+            }
+        };
+
+        Self {
+            zoom,
             ..self
         }
     }

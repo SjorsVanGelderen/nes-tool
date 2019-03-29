@@ -186,7 +186,7 @@ fn main() {
             pattern_table.surface.dimensions
         );
 
-        let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position));
+        let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position) * Matrix4::from_scale(view.zoom));
         let pattern_table_push_constants = pattern_table::vs::ty::UBO {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -348,6 +348,17 @@ fn main() {
                             // mouse.left_down = state == ElementState::Pressed;
                         },
                         _ => ()
+                    }
+                },
+                Event::WindowEvent {
+                    event: WindowEvent::MouseWheel { delta, .. },
+                    ..
+                } => {
+                    match delta {
+                        winit::MouseScrollDelta::LineDelta(_, y) => {
+                            view = view.zoom(y * 0.075);
+                        },
+                        _ => {},
                     }
                 },
                 Event::WindowEvent {
