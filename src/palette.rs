@@ -217,15 +217,20 @@ layout(set = 0, binding = 0) uniform sampler2D tex;
 
 layout(location = 0) out vec4 color;
 
+vec2 palette_size = vec2(16.0, 4.0);
+vec2 color_square_size = vec2(1.0 / palette_size.x, 1.0 / palette_size.y);
+
+vec2 color_center = vec2(
+    floor(mouse.x / color_square_size.x) * color_square_size.x + color_square_size.x / 2.0,
+    floor(mouse.y / color_square_size.y) * color_square_size.y + color_square_size.y / 2.0
+);
+
 void main() {
-    color = mouse.xxxx;
-
-    // TODO: Fix this wonky logic
-    vec2 coord = vec2(mouse.x / 4.0, mouse.y / 16.0);
-
-    if(abs(uv.x - mouse.x) < 0.09375 && abs(uv.y - mouse.y) < 0.375)
+    if( abs(uv.x - color_center.x) < color_square_size.x / 1.5
+     && abs(uv.y - color_center.y) < color_square_size.y / 1.5
+      )
     {
-        color = vec4(texture(tex, coord).xyz, 1.0);
+        color = vec4(texture(tex, color_center).xyz, 1.0);
     }
     else
     {
