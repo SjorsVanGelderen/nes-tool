@@ -1,6 +1,9 @@
 // Copyright 2019, Sjors van Gelderen
 
-use cgmath::Vector2;
+use cgmath::{
+    Vector2,
+    Vector3,
+};
 
 use crate::surface::Surface;
 use crate::vertex::Vertex;
@@ -69,7 +72,6 @@ type PaletteDescriptorSet = Arc<
 >;
 
 pub struct Palette {
-    pub color_indices: [u8; 26],
     pub surface: Surface,
     pub vertex_shader: vs::Shader,
     pub fragment_shader: fs::Shader,
@@ -86,11 +88,6 @@ impl Palette {
         render_pass: Arc<RenderPassAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
     ) -> Self {
-        let mut color_indices: [u8; 26] = [0; 26];
-        for (i, x) in (0..26).enumerate() {
-            color_indices[i] = x;
-        }
-
         let surface = Self::get_surface(device.clone());
         let vertex_shader = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
@@ -100,7 +97,6 @@ impl Palette {
         let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
-            color_indices,
             surface,
             vertex_shader,
             fragment_shader,
@@ -111,18 +107,20 @@ impl Palette {
         }
     }
 
-    // pub fn set_color_index(self, which: usize, to_color_index: u8) -> Self {
-    //     let mut color_indices = self.color_indices;
-    //     color_indices[which] = to_color_index;
+    pub fn set_position(self, position: Vector3<f32>) -> Self {
+        let surface = Surface {
+            position,
+            ..self.surface
+        };
 
-    //     Self {
-    //         color_indices,
-    //         ..self
-    //     }
-    // }
+        Self {
+            surface,
+            ..self
+        }
+    }
 
     fn get_surface(device: Arc<Device>) -> Surface {
-        Surface::new(device.clone(), Vector2::new(64.0, 16.0))
+        Surface::new(device.clone(), Vector3::new(0.0, 0.0, 1.0), Vector2::new(64.0, 16.0))
     }
 
     fn get_pipeline(
@@ -182,16 +180,19 @@ pub mod vs {
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
 
-layout(push_constant) uniform Matrices {
+layout(push_constant) uniform UBO {
     mat4 mvp;
-} matrices;
+    vec2 mouse;
+} ubo;
 
 layout(location = 0) out vec2 uv_out;
+layout(location = 1) out vec2 mouse_out;
 
 void main() {
-    gl_Position = matrices.mvp * vec4(position, 1);
+    gl_Position = ubo.mvp * vec4(position, 1.0);
 
     uv_out = uv;
+    mouse_out = ubo.mouse;
 }
 "
     }
@@ -205,13 +206,31 @@ pub mod fs {
 #version 450
 
 layout(location = 0) in vec2 uv;
+layout(location = 1) in vec2 mouse;
 
 layout(set = 0, binding = 0) uniform sampler2D tex;
 
 layout(location = 0) out vec4 color;
 
+vec2 total_size = vec2(16.0, 4.0);
+vec2 color_square_size = vec2(1.0 / total_size.x, 1.0 / total_size.y);
+
+vec2 color_center = vec2(
+    floor(mouse.x / color_square_size.x) * color_square_size.x + color_square_size.x / 2.0,
+    floor(mouse.y / color_square_size.y) * color_square_size.y + color_square_size.y / 2.0
+);
+
 void main() {
-    color = vec4(texture(tex, uv).xyz, 1.0);
+    if( abs(uv.x - color_center.x) < color_square_size.x / 1.5
+     && abs(uv.y - color_center.y) < color_square_size.y / 1.5
+      )
+    {
+        color = vec4(texture(tex, color_center).xyz, 1.0);
+    }
+    else
+    {
+        color = vec4(texture(tex, uv).xyz, 1.0);
+    }
 }
 "
     }

@@ -1,6 +1,9 @@
 // Copyright 2019, Sjors van Gelderen
 
-use cgmath::Vector2;
+use cgmath::{
+    Vector2,
+    Vector3,
+};
 
 use crate::media;
 use crate::surface::Surface;
@@ -84,7 +87,7 @@ pub struct PatternTable {
 
 impl PatternTable {
     pub fn new(
-        device: Arc<Device>, 
+        device: Arc<Device>,
         queue: Arc<Queue>,
         render_pass: Arc<RenderPassAbstract + Send + Sync>,
         sampler: Arc<Sampler>
@@ -132,8 +135,15 @@ impl PatternTable {
         }
     }
 
+    // pub fn set_surface(self, surface: Surface) {
+    //     Self {
+    //         surface,
+    //         ..self
+    //     }
+    // }
+
     fn get_surface(device: Arc<Device>) -> Surface {
-        Surface::new(device.clone(), Vector2::new(200.0, 100.0))
+        Surface::new(device.clone(), Vector3::new(0.0, 0.0, 3.0), Vector2::new(200.0, 100.0))
     }
 
     fn get_pipeline(
@@ -197,21 +207,19 @@ pub mod vs {
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
 
-// layout(set = 0, binding = 0) uniform UniformBufferObject
-// {
-//     mat4 mvp;
-// } ubo;
-
-layout(push_constant) uniform Matrices {
+layout(push_constant) uniform UBO {
     mat4 mvp;
-} matrices;
+    vec2 mouse;
+} ubo;
 
 layout(location = 0) out vec2 uv_out;
+layout(location = 1) out vec2 mouse_out;
 
 void main() {
-    gl_Position = matrices.mvp * vec4(position, 1);
+    gl_Position = ubo.mvp * vec4(position, 1);
 
     uv_out = uv;
+    mouse_out = ubo.mouse;
 }
 "
     }
@@ -225,12 +233,14 @@ pub mod fs {
 #version 450
 
 layout(location = 0) in vec2 uv;
+layout(location = 1) in vec2 mouse;
 
 layout(set = 0, binding = 0) uniform sampler2D tex; 
 
 layout(location = 0) out vec4 color;
 
 void main() {
+    color = mouse.xxxx; // dummy
     color = vec4(texture(tex, uv).xxx, 1.0);
 }
 "

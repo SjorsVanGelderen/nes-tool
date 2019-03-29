@@ -3,7 +3,7 @@
 use cgmath::{
     Matrix4,
     Point3,
-    SquareMatrix,
+    // SquareMatrix,
     Vector2,
     Vector3,
 };
@@ -55,66 +55,81 @@ use winit::{
 
 use std::sync::Arc;
 
+#[derive(Clone, Copy)]
 pub struct View {
-    pub dimensions: Vector2<u32>,
-    pub model: Matrix4<f32>,
+    pub window_dimensions: Vector2<u32>,
     pub view: Matrix4<f32>,
     pub projection: Matrix4<f32>,
+    pub projection_dimensions: Vector2<f32>,
+    pub zoom: f32,
 }
 
 impl View {
-    pub fn new(dimensions: Vector2<u32>) -> Self {
-        let model = Matrix4::identity();
-
+    pub fn new(window_dimensions: Vector2<u32>) -> Self {
         let view = Matrix4::look_at(
             Point3::new(0.0, 0.0, -1.0),
             Point3::new(0.0, 0.0, 0.0),
             Vector3::new(0.0, -1.0, 0.0)
         );
 
-        let aspect = dimensions.x as f32 / dimensions.y as f32;
+        let aspect = window_dimensions.x as f32 / window_dimensions.y as f32;
+        let projection_dimensions = Vector2::new(200.0, 200.0);
+        let pd = projection_dimensions;
 
         let projection = cgmath::ortho(
-            -100.0 * aspect, 100.0 * aspect,
-            -100.0, 100.0,
-            0.01, 100.0
+            -(pd.x / 2.0) * aspect, pd.x / 2.0 * aspect,
+            -(pd.y / 2.0), pd.y / 2.0,
+            -100.0, 100.0
+        );
+
+        let zoom = 1.0;
+
+        Self {
+            window_dimensions,
+            view,
+            projection,
+            projection_dimensions,
+            zoom,
+        }
+    }
+
+    pub fn mvp(&self, model: Matrix4<f32>) -> Matrix4<f32> {
+        self.projection * self.view * model
+    }
+
+    pub fn update_projection(self) -> Self {
+        let aspect = self.window_dimensions.x as f32 / self.window_dimensions.y as f32;
+
+        let projection = cgmath::ortho(
+            -50.0 * aspect, 50.0 * aspect,
+            -50.0, 50.0,
+            0.01, 50.0
         );
 
         Self {
-            dimensions,
-            model,
-            view,
             projection,
+            ..self
         }
     }
 
-    pub fn mvp(&self) -> Matrix4<f32> {
-        self.model * self.view * self.projection
-    }
+    pub fn zoom(self, delta: f32) -> Self {
+        let zoom = {
+            let candidate = self.zoom + delta;
 
-    pub fn mvp_from_model(&self, model: Matrix4<f32>) -> Matrix4<f32> {
-        model * self.view * self.projection
-    }
+            if candidate < 1.0 {
+                1.0
+            }
+            else if candidate > 4.0 {
+                4.0
+            }
+            else {
+                candidate
+            }
+        };
 
-    pub fn update_model(&self, model: Matrix4<f32>) -> View {
-        View {
-            model,
-            ..*self
-        }
-    }
-
-    pub fn update_projection(&self) -> View {
-        let aspect = self.dimensions.x as f32 / self.dimensions.y as f32;
-
-        let projection = cgmath::ortho(
-            -100.0 * aspect, 100.0 * aspect,
-            -100.0, 100.0,
-            0.01, 100.0
-        );
-
-        View {
-            projection,
-            ..*self
+        Self {
+            zoom,
+            ..self
         }
     }
 }
@@ -126,8 +141,8 @@ pub struct Mouse {
 }
 
 impl Mouse {
-    pub fn new() -> Mouse {
-        Mouse {
+    pub fn new() -> Self {
+        Self {
             position: Vector2::new(0.0, 0.0),
             dragging: false,
             drag_start: Vector2::new(0.0, 0.0),
@@ -171,7 +186,7 @@ pub fn get_device_and_queues(physical: PhysicalDevice, extensions: DeviceExtensi
 pub fn get_surface(events_loop: &EventsLoop, instance: Arc<Instance>) -> Arc<Surface<Window>> {
     WindowBuilder::new()
         .with_title("NES tool")
-        .with_dimensions(LogicalSize::new(1280.0, 720.0))
+        .with_dimensions(LogicalSize::new(1600.0, 900.0))
         .build_vk_surface(&events_loop, instance)
         .unwrap()
 }

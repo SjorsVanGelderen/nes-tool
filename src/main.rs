@@ -19,11 +19,9 @@ mod system;
 mod tool;
 mod vertex;
 
-// use crate::attribute_table::AttributeTable;
 use crate::palette::Palette;
 use crate::pattern_table::PatternTable;
-// use crate::nametable::Nametable;
-// use crate::samples::Samples;
+use crate::samples::Samples;
 
 use crate::system::{
     Mouse,
@@ -32,7 +30,6 @@ use crate::system::{
 
 use cgmath::{
     Matrix4,
-    // SquareMatrix, // Needed for Matrix4::identity
     Vector2,
     Vector3,
 };
@@ -113,14 +110,18 @@ fn main() {
             }
         ).unwrap()
     );
+
+    let palette = Palette::new(
+        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
+    ).set_position(Vector3::new(-80.0, -80.0, 0.0));
+
+    let samples = Samples::new(
+        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
+    ).set_position(Vector3::new(80.0, -80.0, 0.0));
     
     let pattern_table = PatternTable::new(
         device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
     ).load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
-
-    let palette = Palette::new(
-        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    );
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -137,10 +138,13 @@ fn main() {
     let mut previous_frame_end = Box::new(
         pattern_table.tex_future
             .join(palette.tex_future)
+            .join(samples.tex_future)
     ) as Box<GpuFuture>;
 
-    let mut view = View::new(Vector2::new(1280, 720));
+    let mut view = View::new(Vector2::new(1600, 900));
     let mut mouse = Mouse::new();
+
+    view.update_projection();
 
     loop {
         previous_frame_end.cleanup_finished();
@@ -148,7 +152,6 @@ fn main() {
         if recreate_swapchain {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
-
                 view = View::new(Vector2::new(dimensions.0, dimensions.1));
 
                 [dimensions.0, dimensions.1]
@@ -161,7 +164,7 @@ fn main() {
                 match swapchain.recreate_with_dimension(dimensions) {
                     Ok(r) => r,
                     Err(SwapchainCreationError::UnsupportedDimensions) => continue,
-                    Err(err) => panic!("{:?}", err)
+                    Err(e) => panic!("{:?}", e)
                 };
 
             swapchain = new_swapchain;
@@ -172,28 +175,66 @@ fn main() {
             recreate_swapchain = false;
         }
 
-        // TODO: Figure out a way to make the shader data private and get it here in a different way
+        // TODO: Move the logic below to the correct modules
         // TODO: Figure out a better way to supply a mat4 as a push constant
-        // TODO: Figure out how to translate correctly with the mvp
+        let pattern_table_mouse = get_mouse_position_on_surface(
+            mouse.position,
+            Vector2::new(
+                pattern_table.surface.position.x,
+                pattern_table.surface.position.y
+            ),
+            pattern_table.surface.dimensions
+        );
 
-        let mvp = view.mvp();
-        let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
+        let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position) * Matrix4::from_scale(view.zoom));
+        let pattern_table_push_constants = pattern_table::vs::ty::UBO {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
                 [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
+            mouse: [ pattern_table_mouse.x, pattern_table_mouse.y ],
         };
 
-        let mvp = view.mvp_from_model(Matrix4::from_translation(Vector3::new(0.0, 0.7, 0.0) /*palette.surface.position*/));
-        let palette_push_constants = palette::vs::ty::Matrices {
+        let palette_mouse = get_mouse_position_on_surface(
+            mouse.position,
+            Vector2::new(
+                palette.surface.position.x,
+                palette.surface.position.y
+            ),
+            palette.surface.dimensions
+        );
+
+        let mvp = view.mvp(Matrix4::from_translation(palette.surface.position));
+        let palette_push_constants = palette::vs::ty::UBO {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
                 [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
+            mouse: [ palette_mouse.x, palette_mouse.y ],
+        };
+
+        let samples_mouse = get_mouse_position_on_surface(
+            mouse.position,
+            Vector2::new(
+                samples.surface.position.x,
+                samples.surface.position.y
+            ),
+            samples.surface.dimensions
+        );
+
+        let mvp = view.mvp(Matrix4::from_translation(samples.surface.position));
+        let samples_push_constants = samples::vs::ty::UBO {
+            mvp: [
+                [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
+                [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
+                [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
+                [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
+            ],
+            mouse: [ samples_mouse.x, samples_mouse.y ],
         };
 
         let (image_number, acquire_future) =
@@ -203,11 +244,12 @@ fn main() {
                     recreate_swapchain = true;
                     continue;
                 },
-                Err(err) => panic!("{:?}", err)
+                Err(e) => panic!("{:?}", e)
             };
 
         let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
 
+        // TODO: Investigate getting the parts of the builder from their respective modules
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             device.clone(),
             queue.family()
@@ -232,6 +274,14 @@ fn main() {
             palette.surface.index_buffer.clone(),
             palette.descriptor_set.clone(),
             palette_push_constants
+        ).unwrap()
+        .draw_indexed(
+            samples.pipeline.clone(),
+            &dynamic_state,
+            samples.surface.vertex_buffer.clone(),
+            samples.surface.index_buffer.clone(),
+            samples.descriptor_set.clone(),
+            samples_push_constants
         ).unwrap()
         .end_render_pass().unwrap()
         .build().unwrap();
@@ -271,22 +321,16 @@ fn main() {
                     event: WindowEvent::CursorMoved { position, .. },
                     ..
                 } => {
-                    mouse.position = Vector2::new(position.x as f32, position.y as f32);
+                    let mp = position.to_physical(window.get_hidpi_factor());
+                    let mp = Vector2::new(mp.x as f32, mp.y as f32);
+                    let wd = Vector2::new(view.window_dimensions.x as f32, view.window_dimensions.y as f32);
+                    let pd = view.projection_dimensions;
+                    let aspect = wd.x / wd.y;
 
-                    // TODO: Fix dragging logic
-                    if mouse.dragging {
-                        view = view.update_model(
-                            Matrix4::from_translation(
-                                Vector3::new(
-                                    (mouse.position.x - view.dimensions.x as f32 / 2.0) / 1000.0,
-                                    (mouse.position.y - view.dimensions.y as f32 / 2.0) / 1000.0, 
-                                    0.0
-                                )
-                            )
-                        );
-
-                        view = view.update_projection();
-                    }
+                    mouse.position = Vector2::new(
+                        mp.x / wd.x * pd.x * aspect - pd.x * aspect / 2.0,
+                        mp.y / wd.y * pd.y - pd.y / 2.0,
+                    );
                 },
                 Event::WindowEvent {
                     event: WindowEvent::MouseInput { state, button, .. },
@@ -304,6 +348,17 @@ fn main() {
                             // mouse.left_down = state == ElementState::Pressed;
                         },
                         _ => ()
+                    }
+                },
+                Event::WindowEvent {
+                    event: WindowEvent::MouseWheel { delta, .. },
+                    ..
+                } => {
+                    match delta {
+                        winit::MouseScrollDelta::LineDelta(_, y) => {
+                            view = view.zoom(y * 0.075);
+                        },
+                        _ => {},
                     }
                 },
                 Event::WindowEvent {
@@ -334,6 +389,7 @@ fn main() {
     }
 }
 
+// TODO: Move to system module
 fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
     Sampler::new(
         device.clone(),
@@ -345,4 +401,27 @@ fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
         SamplerAddressMode::ClampToEdge,
         0.0, 1.0, 0.0, 0.0
     ).unwrap()
+}
+
+// TODO: Move to system module
+fn get_mouse_position_on_surface(
+    mouse_position: Vector2<f32>,
+    surface_position: Vector2<f32>,
+    surface_dimensions: Vector2<f32>,
+) -> Vector2<f32> {
+    let mp = Vector2::new(mouse_position.x, -mouse_position.y);
+    let sp = surface_position;
+    let sd = Vector2::new(surface_dimensions.x, surface_dimensions.y);
+
+    if (mp.x - sp.x).abs() < sd.x / 2.0
+    && (mp.y - sp.y).abs() < sd.y / 2.0 {
+        let x = (mp.x - (sp.x - sd.x / 2.0)).abs() / surface_dimensions.x;
+        let y = (mp.y - (sp.y - sd.y / 2.0)).abs() / surface_dimensions.y;
+
+        Vector2::new(x, 1.0 - y)
+    }
+    else {
+        // Negative means not on the surface
+        Vector2::new(-1.0, -1.0)
+    }
 }
