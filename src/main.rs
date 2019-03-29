@@ -140,12 +140,10 @@ fn main() {
             .join(palette.tex_future)
     ) as Box<GpuFuture>;
 
-    let mut view = View::new(Vector2::new(1280, 720));
+    let mut view = View::new(Vector2::new(1600, 900));
     let mut mouse = Mouse::new();
 
     view.update_projection();
-
-    let mut theta: f32 = 0.0;
 
     loop {
         previous_frame_end.cleanup_finished();
@@ -153,7 +151,6 @@ fn main() {
         if recreate_swapchain {
             let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
-
                 view = View::new(Vector2::new(dimensions.0, dimensions.1));
 
                 [dimensions.0, dimensions.1]
@@ -179,12 +176,7 @@ fn main() {
 
         // TODO: Figure out a way to make the shader data private and get it here in a different way
         // TODO: Figure out a better way to supply a mat4 as a push constant
-        // let mvp = view.mvp(Matrix4::identity());
-
-        theta = theta + 0.1;
-
-        let mvp = view.mvp(Matrix4::from_translation(Vector3::new(20.0 * theta.cos(), 10.0 * theta.sin(), 0.0)));
-
+        let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position));
         let pattern_table_push_constants = pattern_table::vs::ty::Matrices {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
@@ -194,6 +186,7 @@ fn main() {
             ],
         };
 
+        let mvp = view.mvp(Matrix4::from_translation(palette.surface.position));
         let palette_mouse = get_mouse_position_on_surface(
             mouse.position,
             Vector2::new(
@@ -210,7 +203,7 @@ fn main() {
                 [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
-            mouse: [ palette_mouse.x, palette_mouse.y ] //[ mouse.position.x, mouse.position.y ],
+            mouse: [ palette_mouse.x, palette_mouse.y ],
         };
 
         let (image_number, acquire_future) =
@@ -288,14 +281,15 @@ fn main() {
                     event: WindowEvent::CursorMoved { position, .. },
                     ..
                 } => {
-                    let mp = Vector2::new(position.x as f32, position.y as f32);
+                    let mp = position.to_physical(window.get_hidpi_factor());
+                    let mp = Vector2::new(mp.x as f32, mp.y as f32);
                     let wd = Vector2::new(view.window_dimensions.x as f32, view.window_dimensions.y as f32);
                     let pd = view.projection_dimensions;
                     let aspect = wd.x / wd.y;
 
                     mouse.position = Vector2::new(
-                        (mp.x / wd.x * 2.0 * pd.x - pd.x / 2.0) * aspect,
-                        mp.y / wd.y * 2.0 * pd.y - pd.y / 2.0
+                        mp.x / wd.x * pd.x * aspect - pd.x * aspect / 2.0,
+                        mp.y / wd.y * pd.y - pd.y / 2.0,
                     );
                 },
                 Event::WindowEvent {
@@ -366,6 +360,8 @@ fn get_mouse_position_on_surface(
     let sp = surface_position;
     let sd = Vector2::new(surface_dimensions.x, surface_dimensions.y);
 
+    println!("{:?}", mp);
+
     if (mp.x - sp.x).abs() < sd.x / 2.0
     && (mp.y - sp.y).abs() < sd.y / 2.0 {
         let x = (mp.x - (sp.x - sd.x / 2.0)).abs() / surface_dimensions.x;
@@ -374,7 +370,7 @@ fn get_mouse_position_on_surface(
         Vector2::new(x, 1.0 - y)
     }
     else {
-        // Not on the surface
+        // Negative means not on the surface
         Vector2::new(-1.0, -1.0)
     }
 }
