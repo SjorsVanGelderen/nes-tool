@@ -6,6 +6,7 @@ use cgmath::{
 };
 
 use crate::media;
+use crate::palette;
 use crate::surface::Surface;
 use crate::vertex::Vertex;
 
@@ -20,15 +21,20 @@ use std::{
 };
 
 use vulkano::{
+    buffer::{
+        BufferUsage,
+        cpu_access::CpuAccessibleBuffer,
+    },
     command_buffer::{
         AutoCommandBuffer,
         CommandBufferExecFuture,
     },
     descriptor::{
         descriptor_set::{
+            DescriptorSet,
             PersistentDescriptorSet,
-            PersistentDescriptorSetImg,
-            PersistentDescriptorSetSampler,
+            // PersistentDescriptorSetImg,
+            // PersistentDescriptorSetSampler,
         },
         PipelineLayoutAbstract,
     },
@@ -58,18 +64,8 @@ use vulkano::{
 type PatternTableGraphicsPipeline = Arc<
     GraphicsPipeline<
         SingleBufferDefinition<Vertex>,
-        Box<(dyn PipelineLayoutAbstract + Sync + Send + 'static)>,
-        Arc<(dyn RenderPassAbstract + Sync + Send + 'static)>
-    >
->;
-
-type PatternTableDescriptorSet = Arc<
-    PersistentDescriptorSet<
-        PatternTableGraphicsPipeline,
-        (
-            ((), PersistentDescriptorSetImg<Arc<ImmutableImage<Format>>>),
-            PersistentDescriptorSetSampler
-        )
+        Box<(dyn PipelineLayoutAbstract + Send + Sync + 'static)>,
+        Arc<(dyn RenderPassAbstract + Send + Sync + 'static)>
     >
 >;
 
@@ -82,7 +78,7 @@ pub struct PatternTable {
     pub pipeline: PatternTableGraphicsPipeline,
     pub texture: Arc<ImmutableImage<Format>>,
     pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
-    pub descriptor_set: PatternTableDescriptorSet,
+    pub descriptor_set: Arc<(dyn DescriptorSet + Send + Sync + 'static)>,
 }
 
 impl PatternTable {
@@ -101,7 +97,7 @@ impl PatternTable {
 
         // Arguably redundant
         let (texture, tex_future) = Self::get_texture_and_future(queue.clone(), &pixels);
-        let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
+        let descriptor_set = Self::get_descriptor_set(device.clone(), pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
             bytes,
@@ -116,14 +112,16 @@ impl PatternTable {
         }
     }
 
-    pub fn load_from_file(self, path: &Path, queue: Arc<Queue>, sampler: Arc<Sampler>) -> Self {
+    pub fn load_from_file(
+        self, device: Arc<Device>, path: &Path, queue: Arc<Queue>, sampler: Arc<Sampler>
+    ) -> Self {
         let (bytes, pixels) = match media::load_pattern_table_bytes_and_pixels(path) {
             Ok(result) => result,
             Err(_) => panic!("Failed to load bytes and pixels for pattern table!")
         };
 
         let (texture, tex_future) = Self::get_texture_and_future(queue.clone(), &pixels);
-        let descriptor_set = Self::get_descriptor_set(self.pipeline.clone(), texture.clone(), sampler.clone());
+        let descriptor_set = Self::get_descriptor_set(device.clone(), self.pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
             bytes,
@@ -185,13 +183,24 @@ impl PatternTable {
     }
 
     fn get_descriptor_set(
+        device: Arc<Device>,
         pipeline: PatternTableGraphicsPipeline,
         texture: Arc<ImmutableImage<Format>>,
         sampler: Arc<Sampler>
-    ) -> PatternTableDescriptorSet {
+    ) -> Arc<(dyn DescriptorSet + Send + Sync + 'static)> {
+        let full_palette_buffer = CpuAccessibleBuffer::from_data(
+            device.clone(), BufferUsage::uniform_buffer(), palette::FULL_PALETTE
+        ).expect("Failed to create buffer!");
+
+        // let samples_color_indices_buffer = CpuAccessibleBuffer::from_data(
+        //     device.clone(), BufferUsage::uniform_buffer(), FIX_ME
+        // ).expect("Failed to create buffer!");
+        
         Arc::new(
             PersistentDescriptorSet::start(pipeline.clone(), 0)
             .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
+            .add_buffer(full_palette_buffer).unwrap()
+            // .add_buffer(samples_color_indices_buffer).unwrap();
             .build().unwrap()
         )
     }
@@ -207,19 +216,19 @@ pub mod vs {
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
 
-layout(push_constant) uniform UBO {
+layout(push_constant) uniform push_constants {
     mat4 mvp;
     vec2 mouse;
-} ubo;
+} pc;
 
 layout(location = 0) out vec2 uv_out;
 layout(location = 1) out vec2 mouse_out;
 
 void main() {
-    gl_Position = ubo.mvp * vec4(position, 1);
+    gl_Position = pc.mvp * vec4(position, 1);
 
     uv_out = uv;
-    mouse_out = ubo.mouse;
+    mouse_out = pc.mouse;
 }
 "
     }
@@ -235,12 +244,17 @@ pub mod fs {
 layout(location = 0) in vec2 uv;
 layout(location = 1) in vec2 mouse;
 
-layout(set = 0, binding = 0) uniform sampler2D tex; 
+layout(set = 0, binding = 0) uniform sampler2D tex;
+layout(set = 0, binding = 1) uniform UBO {
+    vec4 full_palette[64];
+    // uint samples_color_indices[26];
+} ubo;
 
 layout(location = 0) out vec4 color;
 
 void main() {
     color = mouse.xxxx; // dummy
+    color = ubo.full_palette[0]; // dummy
     color = vec4(texture(tex, uv).xxx, 1.0);
 }
 "

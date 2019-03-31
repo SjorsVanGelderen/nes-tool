@@ -57,8 +57,8 @@ use vulkano::{
 type SamplesGraphicsPipeline = Arc<
     GraphicsPipeline<
         SingleBufferDefinition<Vertex>,
-        Box<(dyn PipelineLayoutAbstract + Sync + Send + 'static)>,
-        Arc<(dyn RenderPassAbstract + Sync + Send + 'static)>
+        Box<(dyn PipelineLayoutAbstract + Send + Sync + 'static)>,
+        Arc<(dyn RenderPassAbstract + Send + Sync + 'static)>
     >
 >;
 
@@ -201,19 +201,19 @@ pub mod vs {
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec2 uv;
 
-layout(push_constant) uniform UBO {
+layout(push_constant) uniform push_constants {
     mat4 mvp;
     vec2 mouse;
-} ubo;
+} pc;
 
 layout(location = 0) out vec2 uv_out;
 layout(location = 1) out vec2 mouse_out;
 
 void main() {
-    gl_Position = ubo.mvp * vec4(position, 1.0);
+    gl_Position = pc.mvp * vec4(position, 1.0);
 
     uv_out = uv;
-    mouse_out = ubo.mouse;
+    mouse_out = pc.mouse;
 }
 "
     }

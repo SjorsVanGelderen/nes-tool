@@ -121,7 +121,9 @@ fn main() {
     
     let pattern_table = PatternTable::new(
         device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    ).load_from_file(Path::new("mario.chr"), queue.clone(), sampler.clone());
+    ).load_from_file(
+        device.clone(), Path::new("mario.chr"), queue.clone(), sampler.clone()
+    );
 
     let mut dynamic_state = DynamicState {
         line_width: None, 
@@ -187,7 +189,7 @@ fn main() {
         );
 
         let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position) * Matrix4::from_scale(view.zoom));
-        let pattern_table_push_constants = pattern_table::vs::ty::UBO {
+        let pattern_table_push_constants = pattern_table::vs::ty::push_constants {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
@@ -207,7 +209,7 @@ fn main() {
         );
 
         let mvp = view.mvp(Matrix4::from_translation(palette.surface.position));
-        let palette_push_constants = palette::vs::ty::UBO {
+        let palette_push_constants = palette::vs::ty::push_constants {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
@@ -227,7 +229,7 @@ fn main() {
         );
 
         let mvp = view.mvp(Matrix4::from_translation(samples.surface.position));
-        let samples_push_constants = samples::vs::ty::UBO {
+        let samples_push_constants = samples::vs::ty::push_constants {
             mvp: [
                 [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
                 [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
