@@ -97,7 +97,7 @@ impl PatternTable {
 
         // Arguably redundant
         let (texture, tex_future) = Self::get_texture_and_future(queue.clone(), &pixels);
-        let descriptor_set = Self::get_descriptor_set(device.clone(), pipeline.clone(), texture.clone(), sampler.clone());
+        let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
             bytes,
@@ -121,7 +121,7 @@ impl PatternTable {
         };
 
         let (texture, tex_future) = Self::get_texture_and_future(queue.clone(), &pixels);
-        let descriptor_set = Self::get_descriptor_set(device.clone(), self.pipeline.clone(), texture.clone(), sampler.clone());
+        let descriptor_set = Self::get_descriptor_set(self.pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
             bytes,
@@ -183,14 +183,14 @@ impl PatternTable {
     }
 
     fn get_descriptor_set(
-        device: Arc<Device>,
+        // device: Arc<Device>,
         pipeline: PatternTableGraphicsPipeline,
         texture: Arc<ImmutableImage<Format>>,
         sampler: Arc<Sampler>
     ) -> Arc<(dyn DescriptorSet + Send + Sync + 'static)> {
-        let full_palette_buffer = CpuAccessibleBuffer::from_data(
-            device.clone(), BufferUsage::uniform_buffer(), palette::FULL_PALETTE
-        ).expect("Failed to create buffer!");
+        // let full_palette_buffer = CpuAccessibleBuffer::from_data(
+        //     device.clone(), BufferUsage::uniform_buffer(), palette::FULL_PALETTE
+        // ).expect("Failed to create buffer!");
 
         // let samples_color_indices_buffer = CpuAccessibleBuffer::from_data(
         //     device.clone(), BufferUsage::uniform_buffer(), FIX_ME
@@ -199,7 +199,7 @@ impl PatternTable {
         Arc::new(
             PersistentDescriptorSet::start(pipeline.clone(), 0)
             .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
-            .add_buffer(full_palette_buffer).unwrap()
+            // .add_buffer(full_palette_buffer).unwrap()
             // .add_buffer(samples_color_indices_buffer).unwrap();
             .build().unwrap()
         )
@@ -219,16 +219,19 @@ layout(location = 1) in vec2 uv;
 layout(push_constant) uniform push_constants {
     mat4 mvp;
     vec2 mouse;
+    uint active_sample;
 } pc;
 
 layout(location = 0) out vec2 uv_out;
 layout(location = 1) out vec2 mouse_out;
+layout(location = 2) out uint active_sample_out;
 
 void main() {
     gl_Position = pc.mvp * vec4(position, 1);
 
     uv_out = uv;
     mouse_out = pc.mouse;
+    active_sample_out = pc.active_sample;
 }
 "
     }
@@ -243,19 +246,23 @@ pub mod fs {
 
 layout(location = 0) in vec2 uv;
 layout(location = 1) in vec2 mouse;
+layout(location = 2) in flat uint active_sample;
 
 layout(set = 0, binding = 0) uniform sampler2D tex;
-layout(set = 0, binding = 1) uniform UBO {
-    vec4 full_palette[64];
-    // uint samples_color_indices[26];
-} ubo;
+// layout(set = 0, binding = 1) uniform UBO {
+    // uvec4 full_palette[64];
+//     uvec4 samples_color_indices[8];
+// } ubo;
 
 layout(location = 0) out vec4 color;
 
+// uint sample_index = active_sample / 3 * 3;
+// uvec4 sample_data = ubo.samples_color_indices[sample_index];
+// uint tone = uint(texture(tex, uv).x * 4.0);
+
 void main() {
     color = mouse.xxxx; // dummy
-    color = ubo.full_palette[0]; // dummy
-    color = vec4(texture(tex, uv).xxx, 1.0);
+    // color = ubo.full_palette[sample_data[tone]];
 }
 "
     }

@@ -179,26 +179,6 @@ fn main() {
 
         // TODO: Move the logic below to the correct modules
         // TODO: Figure out a better way to supply a mat4 as a push constant
-        let pattern_table_mouse = get_mouse_position_on_surface(
-            mouse.position,
-            Vector2::new(
-                pattern_table.surface.position.x,
-                pattern_table.surface.position.y
-            ),
-            pattern_table.surface.dimensions
-        );
-
-        let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position) * Matrix4::from_scale(view.zoom));
-        let pattern_table_push_constants = pattern_table::vs::ty::push_constants {
-            mvp: [
-                [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
-                [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
-                [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
-                [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
-            ],
-            mouse: [ pattern_table_mouse.x, pattern_table_mouse.y ],
-        };
-
         let palette_mouse = get_mouse_position_on_surface(
             mouse.position,
             Vector2::new(
@@ -237,6 +217,27 @@ fn main() {
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
             mouse: [ samples_mouse.x, samples_mouse.y ],
+        };
+
+        let pattern_table_mouse = get_mouse_position_on_surface(
+            mouse.position,
+            Vector2::new(
+                pattern_table.surface.position.x,
+                pattern_table.surface.position.y
+            ),
+            pattern_table.surface.dimensions
+        );
+
+        let mvp = view.mvp(Matrix4::from_translation(pattern_table.surface.position) * Matrix4::from_scale(view.zoom));
+        let pattern_table_push_constants = pattern_table::vs::ty::push_constants {
+            mvp: [
+                [ mvp.x.x, mvp.x.y, mvp.x.z, mvp.x.w ],
+                [ mvp.y.x, mvp.y.y, mvp.y.z, mvp.y.w ],
+                [ mvp.z.x, mvp.z.y, mvp.z.z, mvp.z.w ],
+                [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
+            ],
+            mouse: [ pattern_table_mouse.x, pattern_table_mouse.y ],
+            active_sample: 0,
         };
 
         let (image_number, acquire_future) =
