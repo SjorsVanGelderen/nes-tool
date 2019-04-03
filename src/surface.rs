@@ -59,14 +59,6 @@ impl Surface {
         }
     }
 
-    // pub fn set_position(self, position: Vector3<f32>) -> Self {
-    //     Self {
-    //         position,
-    //         ..self
-    //     }
-    // }
-
-    // TODO: Find alternative to CpuAccessibleBuffer as it will be deprecated
     fn get_vertex_buffer(device: Arc<Device>, vertices: Vec<Vertex>) -> Arc<CpuAccessibleBuffer<[Vertex]>> {
         CpuAccessibleBuffer::from_iter(
             device.clone(), 

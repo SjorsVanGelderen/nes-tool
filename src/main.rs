@@ -113,16 +113,16 @@ fn main() {
 
     let palette = Palette::new(
         device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    ).set_position(Vector3::new(-80.0, -80.0, 0.0));
+    )
+    .set_position(Vector3::new(-80.0, -80.0, 0.0));
 
     let samples = Samples::new(
         device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    ).set_position(Vector3::new(80.0, -80.0, 0.0));
+    )
+    .set_position(Vector3::new(80.0, -80.0, 0.0));
     
     let pattern_table = PatternTable::new(
         device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    ).load_from_file(
-        device.clone(), Path::new("mario.chr"), queue.clone(), sampler.clone()
     );
 
     let mut dynamic_state = DynamicState {
@@ -137,11 +137,46 @@ fn main() {
 
     let mut recreate_swapchain = false;
 
+    // TODO: Refactor this mess
+    let (palette_tex, palette_tex_future) =
+        palette::Palette::get_texture_and_future(queue.clone());
+
+    let pixels = [0; 32768];
+    let (pattern_table_tex, pattern_table_tex_future) = pattern_table::PatternTable::load_from_file(
+        Path::new("mario.chr"), queue.clone(), sampler.clone()
+    );
+        // pattern_table::PatternTable::get_texture_and_future(queue.clone(), &pixels);
+
+
+    // TODO: Find a way to do this cleanly
+    // .load_from_file(
+    //     Path::new("mario.chr"), queue.clone(), sampler.clone()
+    // );
+
+    let mut color_indices: [u8; 26] = [0; 26];
+    for (i, x) in (0..26).enumerate() {
+        color_indices[i] = x;
+    }
+    let (samples_tex, samples_tex_future) =
+        samples::Samples::get_texture_and_future(queue.clone(), &color_indices);
+
     let mut previous_frame_end = Box::new(
-        pattern_table.tex_future
-            .join(palette.tex_future)
-            .join(samples.tex_future)
+        pattern_table_tex_future
+            .join(palette_tex_future)
+            .join(samples_tex_future)
     ) as Box<GpuFuture>;
+
+    let palette_descriptor_set = palette::Palette::get_descriptor_set(
+        palette.pipeline.clone(), palette_tex, sampler.clone()
+    );
+
+    let samples_descriptor_set = samples::Samples::get_descriptor_set(
+        samples.pipeline.clone(), samples_tex, sampler.clone()
+    );
+
+    let pattern_table_descriptor_set = pattern_table::PatternTable::get_descriptor_set(
+        pattern_table.pipeline.clone(), pattern_table_tex, sampler.clone()
+    );
 
     let mut view = View::new(Vector2::new(1600, 900));
     let mut mouse = Mouse::new();
@@ -179,7 +214,7 @@ fn main() {
 
         // TODO: Move the logic below to the correct modules
         // TODO: Figure out a better way to supply a mat4 as a push constant
-        let palette_mouse = get_mouse_position_on_surface(
+        let palette_mouse = system::get_mouse_position_on_surface(
             mouse.position,
             Vector2::new(
                 palette.surface.position.x,
@@ -199,7 +234,7 @@ fn main() {
             mouse: [ palette_mouse.x, palette_mouse.y ],
         };
 
-        let samples_mouse = get_mouse_position_on_surface(
+        let samples_mouse = system::get_mouse_position_on_surface(
             mouse.position,
             Vector2::new(
                 samples.surface.position.x,
@@ -219,7 +254,7 @@ fn main() {
             mouse: [ samples_mouse.x, samples_mouse.y ],
         };
 
-        let pattern_table_mouse = get_mouse_position_on_surface(
+        let pattern_table_mouse = system::get_mouse_position_on_surface(
             mouse.position,
             Vector2::new(
                 pattern_table.surface.position.x,
@@ -237,6 +272,7 @@ fn main() {
                 [ mvp.w.x, mvp.w.y, mvp.w.z, mvp.w.w ],
             ],
             mouse: [ pattern_table_mouse.x, pattern_table_mouse.y ],
+            sample_colors: [0.0; 12], // 4(colors) * 3(rgb) = 12 values. Only pass the active sample data here
             active_sample: 0,
         };
 
@@ -251,6 +287,13 @@ fn main() {
             };
 
         let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
+
+        // let palette_descriptor_set = if let Some(ds) = palette.descriptor_set {
+        //     ds.clone()
+        // }
+        // else {
+        //     panic!("Failed to load palette descriptor set!");
+        // };
 
         // TODO: Investigate getting the parts of the builder from their respective modules
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
@@ -267,7 +310,7 @@ fn main() {
             &dynamic_state,
             pattern_table.surface.vertex_buffer.clone(),
             pattern_table.surface.index_buffer.clone(),
-            pattern_table.descriptor_set.clone(),
+            pattern_table_descriptor_set.clone(),
             pattern_table_push_constants
         ).unwrap()
         .draw_indexed(
@@ -275,7 +318,7 @@ fn main() {
             &dynamic_state,
             palette.surface.vertex_buffer.clone(),
             palette.surface.index_buffer.clone(),
-            palette.descriptor_set.clone(),
+            palette_descriptor_set.clone(),
             palette_push_constants
         ).unwrap()
         .draw_indexed(
@@ -283,7 +326,7 @@ fn main() {
             &dynamic_state,
             samples.surface.vertex_buffer.clone(),
             samples.surface.index_buffer.clone(),
-            samples.descriptor_set.clone(),
+            samples_descriptor_set.clone(),
             samples_push_constants
         ).unwrap()
         .end_render_pass().unwrap()
@@ -344,7 +387,11 @@ fn main() {
                             // mouse.left_down = state == ElementState::Pressed;
 
                             if state == ElementState::Pressed {
-                                mouse.drag_start = mouse.position;
+                                // mouse.drag_start = mouse.position;
+
+                                // let click_consumed = palette.click();
+                                // let click_consumed = samples.click();
+                                let click_consumed = pattern_table.click(mouse.position);
                             }
                         },
                         MouseButton::Right => {
@@ -404,27 +451,4 @@ fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
         SamplerAddressMode::ClampToEdge,
         0.0, 1.0, 0.0, 0.0
     ).unwrap()
-}
-
-// TODO: Move to system module
-fn get_mouse_position_on_surface(
-    mouse_position: Vector2<f32>,
-    surface_position: Vector2<f32>,
-    surface_dimensions: Vector2<f32>,
-) -> Vector2<f32> {
-    let mp = Vector2::new(mouse_position.x, -mouse_position.y);
-    let sp = surface_position;
-    let sd = Vector2::new(surface_dimensions.x, surface_dimensions.y);
-
-    if (mp.x - sp.x).abs() < sd.x / 2.0
-    && (mp.y - sp.y).abs() < sd.y / 2.0 {
-        let x = (mp.x - (sp.x - sd.x / 2.0)).abs() / surface_dimensions.x;
-        let y = (mp.y - (sp.y - sd.y / 2.0)).abs() / surface_dimensions.y;
-
-        Vector2::new(x, 1.0 - y)
-    }
-    else {
-        // Negative means not on the surface
-        Vector2::new(-1.0, -1.0)
-    }
 }

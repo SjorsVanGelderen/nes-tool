@@ -25,9 +25,8 @@ use vulkano::{
     },
     descriptor::{
         descriptor_set::{
+            DescriptorSet,
             PersistentDescriptorSet,
-            PersistentDescriptorSetImg,
-            PersistentDescriptorSetSampler,
         },
         PipelineLayoutAbstract,
     },
@@ -62,25 +61,15 @@ type SamplesGraphicsPipeline = Arc<
     >
 >;
 
-type SamplesDescriptorSet = Arc<
-    PersistentDescriptorSet<
-        SamplesGraphicsPipeline,
-        (
-            ((), PersistentDescriptorSetImg<Arc<ImmutableImage<Format>>>),
-            PersistentDescriptorSetSampler
-        )
-    >
->;
-
 pub struct Samples {
-    pub color_indices: [u8; 26],
+    // pub color_indices: [u8; 26],
     pub surface: Surface,
     pub vertex_shader: vs::Shader,
     pub fragment_shader: fs::Shader,
     pub pipeline: SamplesGraphicsPipeline,
-    pub texture: Arc<ImmutableImage<Format>>,
-    pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
-    pub descriptor_set: SamplesDescriptorSet,
+    // pub texture: Arc<ImmutableImage<Format>>,
+    // pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
+    // pub descriptor_set: Option<SamplesDescriptorSet>,
 }
 
 impl Samples {
@@ -90,29 +79,44 @@ impl Samples {
         render_pass: Arc<RenderPassAbstract + Send + Sync>,
         sampler: Arc<Sampler>,
     ) -> Self {
-        let mut color_indices: [u8; 26] = [0; 26];
-        for (i, x) in (0..26).enumerate() {
-            color_indices[i] = x;
-        }
-
         let surface = Self::get_surface(device.clone());
         let vertex_shader = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
         let pipeline = Self::get_pipeline(device.clone(), &vertex_shader, &fragment_shader, render_pass.clone());
 
-        let (texture, tex_future) = Self::get_texture_and_future(&color_indices, queue.clone());
-        let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
+        // let (texture, tex_future) = Self::get_texture_and_future(&color_indices, queue.clone());
+        // let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
+
+        // let descriptor_set = None;
 
         Self {
-            color_indices,
+            // color_indices,
             surface,
             vertex_shader,
             fragment_shader,
             pipeline,
-            texture,
-            tex_future,
-            descriptor_set,
+            // texture,
+            // tex_future,
+            // descriptor_set,
         }
+    }
+
+    pub fn get_texture_and_future(queue: Arc<Queue>, color_indices: &[u8; 26]) -> (
+        Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
+    ) {
+        let image_data: Vec<u8> = color_indices.iter().flat_map(
+            |x| {
+                let index = (*x * 3) as usize;
+                vec![FULL_PALETTE[index], FULL_PALETTE[index + 1], FULL_PALETTE[index + 2], 255u8]
+            }
+        ).collect();
+
+        ImmutableImage::from_iter(
+            image_data.iter().cloned(),
+            Dimensions::Dim2d { width: 13, height: 2 },
+            Format::R8G8B8A8Unorm,
+            queue.clone()
+        ).unwrap()
     }
 
     pub fn set_position(self, position: Vector3<f32>) -> Self {
@@ -160,29 +164,11 @@ impl Samples {
         )
     }
 
-    fn get_texture_and_future(color_indices: &[u8; 26], queue: Arc<Queue>) -> (
-        Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
-    ) {
-        let image_data: Vec<u8> = color_indices.iter().flat_map(
-            |x| {
-                let index = (*x * 3) as usize;
-                vec![FULL_PALETTE[index], FULL_PALETTE[index + 1], FULL_PALETTE[index + 2], 255u8]
-            }
-        ).collect();
-
-        ImmutableImage::from_iter(
-            image_data.iter().cloned(),
-            Dimensions::Dim2d { width: 13, height: 2 },
-            Format::R8G8B8A8Unorm,
-            queue.clone()
-        ).unwrap()
-    }
-
-    fn get_descriptor_set(
+    pub fn get_descriptor_set(
         pipeline: SamplesGraphicsPipeline,
         texture: Arc<ImmutableImage<Format>>,
         sampler: Arc<Sampler>
-    ) -> SamplesDescriptorSet {
+    ) -> Arc<(dyn DescriptorSet + Send + Sync + 'static)> {
         Arc::new(
             PersistentDescriptorSet::start(pipeline.clone(), 0)
             .add_sampled_image(texture.clone(), sampler.clone()).unwrap()

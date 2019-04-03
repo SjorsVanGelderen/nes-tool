@@ -256,3 +256,25 @@ pub fn get_window_size_dependent_setup(
         ) as Arc<FramebufferAbstract + Send + Sync>
     }).collect::<Vec<_>>()
 }
+
+pub fn get_mouse_position_on_surface(
+    mouse_position: Vector2<f32>,
+    surface_position: Vector2<f32>,
+    surface_dimensions: Vector2<f32>,
+) -> Vector2<f32> {
+    let mp = Vector2::new(mouse_position.x, -mouse_position.y);
+    let sp = surface_position;
+    let sd = Vector2::new(surface_dimensions.x, surface_dimensions.y);
+
+    if (mp.x - sp.x).abs() < sd.x / 2.0
+    && (mp.y - sp.y).abs() < sd.y / 2.0 {
+        let x = (mp.x - (sp.x - sd.x / 2.0)).abs() / surface_dimensions.x;
+        let y = (mp.y - (sp.y - sd.y / 2.0)).abs() / surface_dimensions.y;
+
+        Vector2::new(x, 1.0 - y)
+    }
+    else {
+        // Negative means not on the surface
+        Vector2::new(-1.0, -1.0)
+    }
+}

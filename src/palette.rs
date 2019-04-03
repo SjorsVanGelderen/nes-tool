@@ -24,9 +24,8 @@ use vulkano::{
     },
     descriptor::{
         descriptor_set::{
+            DescriptorSet,
             PersistentDescriptorSet,
-            PersistentDescriptorSetImg,
-            PersistentDescriptorSetSampler,
         },
         PipelineLayoutAbstract,
     },
@@ -61,24 +60,14 @@ type PaletteGraphicsPipeline = Arc<
     >
 >;
 
-type PaletteDescriptorSet = Arc<
-    PersistentDescriptorSet<
-        PaletteGraphicsPipeline,
-        (
-            ((), PersistentDescriptorSetImg<Arc<ImmutableImage<Format>>>),
-            PersistentDescriptorSetSampler
-        )
-    >
->;
-
 pub struct Palette {
     pub surface: Surface,
     pub vertex_shader: vs::Shader,
     pub fragment_shader: fs::Shader,
     pub pipeline: PaletteGraphicsPipeline,
-    pub texture: Arc<ImmutableImage<Format>>,
-    pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
-    pub descriptor_set: PaletteDescriptorSet,
+    // pub texture: Arc<ImmutableImage<Format>>,
+    // pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
+    // pub descriptor_set: Option<PaletteDescriptorSet>,
 }
 
 impl Palette {
@@ -93,18 +82,33 @@ impl Palette {
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
         let pipeline = Self::get_pipeline(device.clone(), &vertex_shader, &fragment_shader, render_pass.clone());
 
-        let (texture, tex_future) = Self::get_texture_and_future(queue.clone());
-        let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
+        // let (texture, tex_future) = Self::get_texture_and_future(queue.clone());
+        // let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
 
         Self {
             surface,
             vertex_shader,
             fragment_shader,
             pipeline,
-            texture,
-            tex_future,
-            descriptor_set,
+            // texture,
+            // tex_future,
+            // descriptor_set,
         }
+    }
+
+    pub fn get_texture_and_future(queue: Arc<Queue>) -> (
+        Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
+    ) {
+        let image_data: Vec<u8> = FULL_PALETTE.chunks(3).flat_map(
+            |x| vec![x[0], x[1], x[2], 255u8]
+        ).collect();
+
+        ImmutableImage::from_iter(
+            image_data.iter().cloned(),
+            Dimensions::Dim2d { width: 16, height: 4 },
+            Format::R8G8B8A8Unorm,
+            queue.clone()
+        ).unwrap()
     }
 
     pub fn set_position(self, position: Vector3<f32>) -> Self {
@@ -142,26 +146,11 @@ impl Palette {
         )
     }
 
-    fn get_texture_and_future(queue: Arc<Queue>) -> (
-        Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
-    ) {
-        let image_data: Vec<u8> = FULL_PALETTE.chunks(3).flat_map(
-            |x| vec![x[0], x[1], x[2], 255u8]
-        ).collect();
-
-        ImmutableImage::from_iter(
-            image_data.iter().cloned(),
-            Dimensions::Dim2d { width: 16, height: 4 },
-            Format::R8G8B8A8Unorm,
-            queue.clone()
-        ).unwrap()
-    }
-
-    fn get_descriptor_set(
+    pub fn get_descriptor_set(
         pipeline: PaletteGraphicsPipeline,
         texture: Arc<ImmutableImage<Format>>,
         sampler: Arc<Sampler>
-    ) -> PaletteDescriptorSet {
+    ) -> Arc<(dyn DescriptorSet + Send + Sync + 'static)> {
         Arc::new(
             PersistentDescriptorSet::start(pipeline.clone(), 0)
             .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
