@@ -44,13 +44,6 @@ use vulkano::{
         AutoCommandBufferBuilder,
         DynamicState,
     },
-    device::Device,
-    sampler::{
-        Filter,
-        MipmapMode,
-        Sampler,
-        SamplerAddressMode,
-    },
     swapchain::{
         AcquireError,
         acquire_next_image,
@@ -83,7 +76,7 @@ fn main() {
     let mut events_loop = EventsLoop::new();
     let surface = system::get_surface(&events_loop, instance.clone());
     let window = surface.window();
-    let sampler = get_sampler(device.clone());
+    let sampler = system::get_sampler(device.clone());
 
     let (mut swapchain, images) = system::get_swapchain_and_images(
         surface.clone(), physical, window, device.clone(), queue.clone()
@@ -157,16 +150,6 @@ fn main() {
     // TODO: Avoid copies
     let pattern_table = new_pattern_table;
     let pattern_table = pattern_table.get_descriptor_set(sampler.clone());
-
-    // let (pattern_table_tex, pattern_table_tex_future) = pattern_table::PatternTable::load_from_file(
-    //     Path::new("mario.chr"), queue.clone(), sampler.clone()
-    // );
-    // pattern_table::PatternTable::get_texture_and_future(queue.clone(), &pixels);
-
-    // TODO: Find a way to do this cleanly
-    // .load_from_file(
-    //     Path::new("mario.chr"), queue.clone(), sampler.clone()
-    // );
 
     let mut previous_frame_end = Box::new(
         samples_tex_future
@@ -373,18 +356,9 @@ fn main() {
                 } => {
                     match button {
                         MouseButton::Left => {
-                            // mouse.left_down = state == ElementState::Pressed;
-
                             if state == ElementState::Pressed {
-                                // mouse.drag_start = mouse.position;
-
-                                // let click_consumed = palette.click();
-                                // let click_consumed = samples.click();
-                                let click_consumed = pattern_table.click(mouse.position);
+                                let _click_consumed = pattern_table.click(mouse.position);
                             }
-                        },
-                        MouseButton::Right => {
-                            // mouse.left_down = state == ElementState::Pressed;
                         },
                         _ => ()
                     }
@@ -426,18 +400,4 @@ fn main() {
             return;
         }
     }
-}
-
-// TODO: Move to system module
-fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
-    Sampler::new(
-        device.clone(),
-        Filter::Nearest,
-        Filter::Nearest,
-        MipmapMode::Nearest,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
-        SamplerAddressMode::ClampToEdge,
-        0.0, 1.0, 0.0, 0.0
-    ).unwrap()
 }

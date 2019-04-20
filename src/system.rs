@@ -34,6 +34,12 @@ use vulkano::{
     pipeline::{
         viewport::Viewport,
     },
+    sampler::{
+        Filter,
+        MipmapMode,
+        Sampler,
+        SamplerAddressMode,
+    },
     swapchain::{
         PresentMode,
         Surface,
@@ -181,6 +187,19 @@ pub fn get_device_and_queues(physical: PhysicalDevice, extensions: DeviceExtensi
         &extensions,
         [(queue_family, 0.5)].iter().cloned()
     ).expect("Failed to get device and queues")
+}
+
+pub fn get_sampler(device: Arc<Device>) -> Arc<Sampler> {
+    Sampler::new(
+        device.clone(),
+        Filter::Nearest,
+        Filter::Nearest,
+        MipmapMode::Nearest,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
+        SamplerAddressMode::ClampToEdge,
+        0.0, 1.0, 0.0, 0.0
+    ).unwrap()
 }
 
 pub fn get_surface(events_loop: &EventsLoop, instance: Arc<Instance>) -> Arc<Surface<Window>> {

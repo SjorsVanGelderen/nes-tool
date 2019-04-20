@@ -101,7 +101,7 @@ impl PatternTable {
     ) -> (
         Self, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
     ) {
-        let (bytes, pixels) = match media::load_pattern_table_bytes_and_pixels(path) {
+        let (_bytes, pixels) = match media::load_pattern_table_bytes_and_pixels(path) {
             Ok(result) => result,
             Err(_) => panic!("Failed to load bytes and pixels for pattern table!")
         };
@@ -166,9 +166,6 @@ impl PatternTable {
             ),
             self.surface.dimensions
         );
-
-        let which_color_wins_thats_the_question =
-            click_position;
 
         println!("{:?}", click_position);
 
