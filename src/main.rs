@@ -23,11 +23,6 @@ use crate::palette::Palette;
 use crate::pattern_table::PatternTable;
 use crate::samples::Samples;
 
-use crate::system::{
-    Mouse,
-    View,
-};
-
 use cgmath::{
     Matrix4,
     Vector2,
@@ -37,6 +32,11 @@ use cgmath::{
 use std::{
     path::Path,
     sync::Arc,
+};
+
+use system::{
+    Mouse,
+    View,
 };
 
 use vulkano::{
@@ -67,9 +67,9 @@ use winit::{
     ElementState,
     Event,
     EventsLoop,
+    KeyboardInput,
     MouseButton,
     WindowEvent,
-    KeyboardInput,
     VirtualKeyCode,
 };
 
@@ -83,14 +83,10 @@ fn main() {
     let mut events_loop = EventsLoop::new();
     let surface = system::get_surface(&events_loop, instance.clone());
     let window = surface.window();
-
     let sampler = get_sampler(device.clone());
+
     let (mut swapchain, images) = system::get_swapchain_and_images(
-        surface.clone(), 
-        physical, 
-        window, 
-        device.clone(), 
-        queue.clone()
+        surface.clone(), physical, window, device.clone(), queue.clone()
     );
 
     let render_pass = Arc::new(
@@ -111,20 +107,6 @@ fn main() {
         ).unwrap()
     );
 
-    let palette = Palette::new(
-        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    )
-    .set_position(Vector3::new(-80.0, -80.0, 0.0));
-
-    let samples = Samples::new(
-        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    )
-    .set_position(Vector3::new(80.0, -80.0, 0.0));
-    
-    let pattern_table = PatternTable::new(
-        device.clone(), queue.clone(), render_pass.clone(), sampler.clone()
-    );
-
     let mut dynamic_state = DynamicState {
         line_width: None, 
         viewports: None, 
@@ -137,46 +119,60 @@ fn main() {
 
     let mut recreate_swapchain = false;
 
-    // TODO: Refactor this mess
-    let (palette_tex, palette_tex_future) =
-        palette::Palette::get_texture_and_future(queue.clone());
+    let palette = Palette::new(
+        device.clone(), render_pass.clone()
+    ).set_position(Vector3::new(-80.0, -80.0, 0.0));
 
-    let pixels = [0; 32768];
-    let (pattern_table_tex, pattern_table_tex_future) = pattern_table::PatternTable::load_from_file(
-        Path::new("mario.chr"), queue.clone(), sampler.clone()
+    let (new_palette, palette_tex_future) = palette.get_texture_and_future(queue.clone());
+
+    // TODO: Avoid copies
+    let palette = new_palette;
+    let palette = palette.get_descriptor_set(sampler.clone());
+
+    let samples = Samples::new(
+        device.clone(), render_pass.clone()
+    ).set_position(Vector3::new(80.0, -80.0, 0.0));
+
+    let mut color_indices: [u8; 26] = [0; 26];
+    for (i, x) in (0..26).enumerate() {
+        color_indices[i] = x;
+    }
+
+    let (new_samples, samples_tex_future) = samples.get_texture_and_future(
+        queue.clone(), &color_indices
     );
-        // pattern_table::PatternTable::get_texture_and_future(queue.clone(), &pixels);
 
+    // TODO: Avoid copies
+    let samples = new_samples;
+    let samples = samples.get_descriptor_set(sampler.clone());
+    
+    let pattern_table = PatternTable::new(
+        device.clone(), render_pass.clone()
+    );
+
+    let (new_pattern_table, pattern_table_tex_future) = pattern_table.load_from_file(
+        Path::new("mario.chr"), queue.clone()
+    );
+
+    // TODO: Avoid copies
+    let pattern_table = new_pattern_table;
+    let pattern_table = pattern_table.get_descriptor_set(sampler.clone());
+
+    // let (pattern_table_tex, pattern_table_tex_future) = pattern_table::PatternTable::load_from_file(
+    //     Path::new("mario.chr"), queue.clone(), sampler.clone()
+    // );
+    // pattern_table::PatternTable::get_texture_and_future(queue.clone(), &pixels);
 
     // TODO: Find a way to do this cleanly
     // .load_from_file(
     //     Path::new("mario.chr"), queue.clone(), sampler.clone()
     // );
 
-    let mut color_indices: [u8; 26] = [0; 26];
-    for (i, x) in (0..26).enumerate() {
-        color_indices[i] = x;
-    }
-    let (samples_tex, samples_tex_future) =
-        samples::Samples::get_texture_and_future(queue.clone(), &color_indices);
-
     let mut previous_frame_end = Box::new(
-        pattern_table_tex_future
+        samples_tex_future
             .join(palette_tex_future)
-            .join(samples_tex_future)
+            .join(pattern_table_tex_future)
     ) as Box<GpuFuture>;
-
-    let palette_descriptor_set = palette::Palette::get_descriptor_set(
-        palette.pipeline.clone(), palette_tex, sampler.clone()
-    );
-
-    let samples_descriptor_set = samples::Samples::get_descriptor_set(
-        samples.pipeline.clone(), samples_tex, sampler.clone()
-    );
-
-    let pattern_table_descriptor_set = pattern_table::PatternTable::get_descriptor_set(
-        pattern_table.pipeline.clone(), pattern_table_tex, sampler.clone()
-    );
 
     let mut view = View::new(Vector2::new(1600, 900));
     let mut mouse = Mouse::new();
@@ -288,13 +284,6 @@ fn main() {
 
         let clear_values = vec!([0.16, 0.05, 0.32, 1.0].into());
 
-        // let palette_descriptor_set = if let Some(ds) = palette.descriptor_set {
-        //     ds.clone()
-        // }
-        // else {
-        //     panic!("Failed to load palette descriptor set!");
-        // };
-
         // TODO: Investigate getting the parts of the builder from their respective modules
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             device.clone(),
@@ -310,7 +299,7 @@ fn main() {
             &dynamic_state,
             pattern_table.surface.vertex_buffer.clone(),
             pattern_table.surface.index_buffer.clone(),
-            pattern_table_descriptor_set.clone(),
+            pattern_table.descriptor_set.clone().unwrap().clone(),
             pattern_table_push_constants
         ).unwrap()
         .draw_indexed(
@@ -318,7 +307,7 @@ fn main() {
             &dynamic_state,
             palette.surface.vertex_buffer.clone(),
             palette.surface.index_buffer.clone(),
-            palette_descriptor_set.clone(),
+            palette.descriptor_set.clone().unwrap().clone(),
             palette_push_constants
         ).unwrap()
         .draw_indexed(
@@ -326,7 +315,7 @@ fn main() {
             &dynamic_state,
             samples.surface.vertex_buffer.clone(),
             samples.surface.index_buffer.clone(),
-            samples_descriptor_set.clone(),
+            samples.descriptor_set.clone().unwrap().clone(),
             samples_push_constants
         ).unwrap()
         .end_render_pass().unwrap()

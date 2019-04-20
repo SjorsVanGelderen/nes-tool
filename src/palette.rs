@@ -61,54 +61,78 @@ type PaletteGraphicsPipeline = Arc<
 >;
 
 pub struct Palette {
-    pub surface: Surface,
-    pub vertex_shader: vs::Shader,
+    pub descriptor_set: Option<Arc<(dyn DescriptorSet + Send + Sync + 'static)>>,
     pub fragment_shader: fs::Shader,
     pub pipeline: PaletteGraphicsPipeline,
-    // pub texture: Arc<ImmutableImage<Format>>,
-    // pub tex_future: CommandBufferExecFuture<NowFuture, AutoCommandBuffer>,
-    // pub descriptor_set: Option<PaletteDescriptorSet>,
+    pub surface: Surface,
+    pub texture: Option<Arc<ImmutableImage<Format>>>,
+    pub vertex_shader: vs::Shader,
 }
 
 impl Palette {
     pub fn new(
-        device: Arc<Device>,
-        queue: Arc<Queue>,
-        render_pass: Arc<RenderPassAbstract + Send + Sync>,
-        sampler: Arc<Sampler>,
+        device: Arc<Device>, render_pass: Arc<RenderPassAbstract + Send + Sync>
     ) -> Self {
         let surface = Self::get_surface(device.clone());
         let vertex_shader = vs::Shader::load(device.clone()).expect("Failed to create vertex shader");
         let fragment_shader = fs::Shader::load(device.clone()).expect("Failed to create fragment shader");
         let pipeline = Self::get_pipeline(device.clone(), &vertex_shader, &fragment_shader, render_pass.clone());
-
-        // let (texture, tex_future) = Self::get_texture_and_future(queue.clone());
-        // let descriptor_set = Self::get_descriptor_set(pipeline.clone(), texture.clone(), sampler.clone());
+        let descriptor_set = None;
+        let texture = None;
 
         Self {
-            surface,
-            vertex_shader,
+            descriptor_set,
             fragment_shader,
             pipeline,
-            // texture,
-            // tex_future,
-            // descriptor_set,
+            surface,
+            texture,
+            vertex_shader,
         }
     }
 
-    pub fn get_texture_and_future(queue: Arc<Queue>) -> (
-        Arc<ImmutableImage<Format>>, CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
+    pub fn get_texture_and_future(self, queue: Arc<Queue>) -> (
+        Self,
+        CommandBufferExecFuture<NowFuture, AutoCommandBuffer>
     ) {
         let image_data: Vec<u8> = FULL_PALETTE.chunks(3).flat_map(
             |x| vec![x[0], x[1], x[2], 255u8]
         ).collect();
 
-        ImmutableImage::from_iter(
+        let (tex, tex_future) = ImmutableImage::from_iter(
             image_data.iter().cloned(),
             Dimensions::Dim2d { width: 16, height: 4 },
             Format::R8G8B8A8Unorm,
             queue.clone()
-        ).unwrap()
+        ).unwrap();
+
+        (
+            Self {
+                texture: Some(tex),
+                ..self
+            },
+            tex_future
+        )
+    }
+
+    pub fn get_descriptor_set(
+        self,
+        sampler: Arc<Sampler>
+    ) -> Self {
+        let texture = self.texture.clone().unwrap();
+
+        let descriptor_set: Option<Arc<(dyn DescriptorSet + Send + Sync + 'static)>> =
+            Some(
+                Arc::new(
+                    PersistentDescriptorSet::start(self.pipeline.clone(), 0)
+                    .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
+                    .build().unwrap()
+                )
+            );
+
+        Self {
+            descriptor_set,
+            ..self
+        }
     }
 
     pub fn set_position(self, position: Vector3<f32>) -> Self {
@@ -143,18 +167,6 @@ impl Palette {
                 .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
                 .build(device.clone())
                 .unwrap()
-        )
-    }
-
-    pub fn get_descriptor_set(
-        pipeline: PaletteGraphicsPipeline,
-        texture: Arc<ImmutableImage<Format>>,
-        sampler: Arc<Sampler>
-    ) -> Arc<(dyn DescriptorSet + Send + Sync + 'static)> {
-        Arc::new(
-            PersistentDescriptorSet::start(pipeline.clone(), 0)
-            .add_sampled_image(texture.clone(), sampler.clone()).unwrap()
-            .build().unwrap()
         )
     }
 }
@@ -209,10 +221,15 @@ vec2 color_center = vec2(
     floor(mouse.y / color_square_size.y) * color_square_size.y + color_square_size.y / 2.0
 );
 
+vec2 uv_to_color_center = vec2(abs(uv.x - color_center.x), abs(uv.y - color_center.y));
+
+// TODO: Use this to provide a bit of animation
+// vec2 mouse_to_color_center = mouse - color_center;
+
 void main() {
-    if( abs(uv.x - color_center.x) < color_square_size.x / 1.5
-     && abs(uv.y - color_center.y) < color_square_size.y / 1.5
-      )
+    if ( uv_to_color_center.x < color_square_size.x
+      && uv_to_color_center.y < color_square_size.y
+       )
     {
         color = vec4(texture(tex, color_center).xyz, 1.0);
     }

@@ -198,7 +198,8 @@ pub fn get_swapchain_and_images(
     device: Arc<Device>,
     queue: Arc<Queue>
 ) -> (Arc<Swapchain<Window>>, Vec<Arc<SwapchainImage<Window>>>) {
-    let capabilities = surface.capabilities(physical).expect("Failed to get surface capabilities");
+    let capabilities = surface.capabilities(physical)
+        .expect("Failed to get surface capabilities");
 
     let alpha = capabilities.supported_composite_alpha.iter().next()
         .expect("Failed to get supported composite alpha capability");
